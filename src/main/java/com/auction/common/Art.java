@@ -1,4 +1,4 @@
-package Common;
+package common;
 
 public class Art extends Item{
     Art(String _name, String _id, String _description, double _startPrice) {

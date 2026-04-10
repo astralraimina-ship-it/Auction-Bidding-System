@@ -1,4 +1,4 @@
-package Common;
+package common;
 
 public class Admin extends User{
     Admin(String _name, String _id, String _password){

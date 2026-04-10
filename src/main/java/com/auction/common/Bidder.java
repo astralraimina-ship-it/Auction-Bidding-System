@@ -1,4 +1,4 @@
-package Common;
+package common;
 
 public class Bidder extends User{
     private double money = 0.0;

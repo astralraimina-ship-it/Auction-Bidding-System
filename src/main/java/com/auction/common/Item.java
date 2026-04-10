@@ -1,4 +1,4 @@
-package Common;
+package common;
 
 public abstract class Item extends Entity {
     protected double startPrice;

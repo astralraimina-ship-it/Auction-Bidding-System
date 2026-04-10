@@ -1,4 +1,4 @@
-package Common;
+package common;
 
 public abstract class User extends Entity {
     protected String password;

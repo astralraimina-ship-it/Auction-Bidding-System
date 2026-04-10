@@ -1,4 +1,4 @@
-package Common;
+package common;
 
 public abstract class Entity {
     protected String id;
