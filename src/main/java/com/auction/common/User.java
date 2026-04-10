@@ -1,4 +1,4 @@
-package common;
+package com.auction.common;
 
 public abstract class User extends Entity {
     protected String password;

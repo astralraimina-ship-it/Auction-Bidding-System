@@ -6,5 +6,5 @@ module auction.system {
     opens com.auction.client to javafx.fxml;
 
     exports com.auction.client;
-    exports com.auction.common; // Sửa lại chữ c viết thường nếu đã rename folder
+    exports com.auction.common;
 }

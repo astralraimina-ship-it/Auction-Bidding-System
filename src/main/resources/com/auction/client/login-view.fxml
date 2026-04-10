@@ -1,14 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
-<?import java.lang.*?>
-<?import java.util.*?>
-<?import javafx.scene.*?>
+<?import javafx.scene.layout.VBox?>
 <?import javafx.scene.control.*?>
-<?import javafx.scene.layout.*?>
 
-<AnchorPane xmlns="http://javafx.com/javafx"
-            xmlns:fx="http://javafx.com/fxml"
-            fx:controller="$CONTROLLER_NAME$"
-            prefHeight="400.0" prefWidth="600.0" >
-
-</AnchorPane>
+<VBox alignment="CENTER" spacing="15.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.auction.client.LoginController">
+    <Label text="HỆ THỐNG ĐẤU GIÁ" style="-fx-font-weight: bold; -fx-font-size: 18px;"/>
+    <TextField fx:id="txtUsername" promptText="Tên đăng nhập" maxWidth="200"/>
+    <PasswordField fx:id="txtPassword" promptText="Mật khẩu" maxWidth="200"/>
+    <Button text="Đăng nhập" onAction="#handleLogin" style="-fx-background-color: #2196F3; -fx-text-fill: white;"/>
+</VBox>

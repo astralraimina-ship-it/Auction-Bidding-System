@@ -1,8 +1,8 @@
-package common;
+package com.auction.common;
 
 import java.util.ArrayList;
 
-public class Seller extends User{
+public class Seller extends User {
     private double money = 0.0;
     private ArrayList<Item> items = new ArrayList<>();
 
