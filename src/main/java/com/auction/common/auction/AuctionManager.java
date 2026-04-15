@@ -1,6 +1,4 @@
-package com.auction.common;
-
-import java.util.ArrayList;
+package com.auction.common.auction;
 
 public class AuctionManager {
     //    Áp dụng singleton để tạo duy nhất một đối tượng

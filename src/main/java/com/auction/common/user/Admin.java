@@ -1,4 +1,4 @@
-package com.auction.common;
+package com.auction.common.user;
 
 public class Admin extends User {
     Admin(String _name, String _id, String _password){

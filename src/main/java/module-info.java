@@ -7,4 +7,9 @@ module auction.system {
 
     exports com.auction.client;
     exports com.auction.common;
+    exports com.auction.common.item;
+    exports com.auction.common.create;
+    exports com.auction.common.user;
+    exports com.auction.common.auction;
+    exports com.auction.common.entity;
 }

@@ -1,4 +1,4 @@
 package com.auction.common;
 
-public class Auction {
+public class Main {
 }
