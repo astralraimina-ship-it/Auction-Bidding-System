@@ -12,4 +12,6 @@ public class AuctionManager {
         }
         return manager;
     }
+    public void addAution(Auction auction){
+    }
 }

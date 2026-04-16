@@ -12,7 +12,7 @@ public class Seller extends User implements Transaction {
     private ArrayList<Item> items = new ArrayList<>();
     private ArrayList<Auction> auctions = new ArrayList<>();
 
-    Seller(String _name, String _id, String _password){
+    public Seller(String _name, String _id, String _password){
         super(_name, _id, _password);
     }
 

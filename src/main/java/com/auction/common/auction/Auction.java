@@ -23,7 +23,16 @@ public class Auction {
 
         BidTransaction sell = new BidTransaction(seller.getName(), startPrice, LocalTime.now());
     }
+    public double getCurrentPrice() {
+        double currentPrice;
+        return currentPrice;
+    }
 
+    public BidTransaction getHighestBid() {
+        double highestBid;
+        return highestBid;
+
+    }
 //    Xử lý logic đấu giá
     public void update(User user, double bidPrice){
         try{

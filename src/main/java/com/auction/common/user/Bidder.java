@@ -26,4 +26,7 @@ public class Bidder extends User implements Transaction {
     public void subtract(double _money) {
         money -= _money;
     }
+    public Bidder getBidder() {
+        return Bidder;
+    }
 }
