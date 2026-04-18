@@ -3,6 +3,8 @@ package com.auction.common.auction;
 import com.auction.common.exception.AuctionClosedException;
 import com.auction.common.exception.InvalidBidException;
 import com.auction.common.item.Item;
+import com.auction.common.user.Bidder;
+import com.auction.common.user.Seller;
 import com.auction.common.user.User;
 
 import java.time.LocalTime;
@@ -21,17 +23,24 @@ public class Auction {
         startPrice = _startPrice;
         closedTime = _closedTime;
 
-        BidTransaction sell = new BidTransaction(seller.getName(), startPrice, LocalTime.now());
+        BidTransaction sell = new BidTransaction(seller, startPrice, LocalTime.now());
     }
+
+//    Lấy giá cao nhất hiện tại
     public double getCurrentPrice() {
-        double currentPrice;
+        BidTransaction highestBid = this.getHighestBid();
+        if (highestBid == null){
+            return startPrice;
+        }
+        double currentPrice = highestBid.getBidPrice();
+        System.out.println(currentPrice);
         return currentPrice;
     }
 
+//    method peekLast để lấy phần tử cuối cùng trong Linkedlist
     public BidTransaction getHighestBid() {
-        double highestBid;
+        BidTransaction highestBid = history.peek();
         return highestBid;
-
     }
 //    Xử lý logic đấu giá
     public void update(User user, double bidPrice){
@@ -42,15 +51,13 @@ public class Auction {
                 throw new AuctionClosedException();
             }
 
-//            Lấy lượt đấu giá trước
-            BidTransaction previousBid = history.peek();
-            double previousPrice = previousBid.getBidPrice();
+            double currentPrice = this.getCurrentPrice();
 
-//          so sánh giá với lượt trước
-            if (previousPrice > bidPrice){
+//          so sánh giá với giá cao nhất hiện tại
+            if (currentPrice > bidPrice){
                 throw new InvalidBidException();
             }
-            BidTransaction newBid = new BidTransaction(user.getName(), bidPrice, LocalTime.now());
+            BidTransaction newBid = new BidTransaction(user, bidPrice, time);
             history.push(newBid);
         }
         catch (InvalidBidException e){
@@ -58,6 +65,21 @@ public class Auction {
         }
         catch (AuctionClosedException e){
             System.out.println(e.getMessage());
+        }
+    }
+
+//    Khi đóng phiên đấu giá thì chuyển tiền bidder -> seller
+    public void closed(){
+        BidTransaction highestBid = this.getHighestBid();
+        if (highestBid != null) {
+            User bidder = highestBid.getBidder();
+            double price = this.getCurrentPrice();
+            ((Bidder) bidder).subtract(price);
+            ((Seller) seller).addAmount(price);
+            System.out.println("Paid");
+        }
+        else{
+            System.out.println("Cancel");
         }
     }
 

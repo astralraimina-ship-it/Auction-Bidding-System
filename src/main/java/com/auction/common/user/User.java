@@ -11,7 +11,4 @@ public abstract class User extends Entity {
         password = _password;
     }
 
-    public void bid(Auction aution, double price){
-        aution.update(this, price);
-    }
 }

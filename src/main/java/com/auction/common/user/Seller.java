@@ -17,17 +17,19 @@ public class Seller extends User implements Transaction {
     }
 
 //    tạo phiên đấu giá mới
-    public void sell(Item item, double startPrice, LocalTime closedTime){
-        Auction auction = new Auction(this, item, startPrice, closedTime);
+    public Auction createAuction(Item item, double startPrice, LocalTime closedTime){
+        return new Auction(this, item, startPrice, closedTime);
     }
 
     @Override
     public void addAmount(double _money) {
         money += _money;
+        System.out.println(name + "balance: " + money);
     }
 
     @Override
     public void subtract(double _money) {
         money -= _money;
+        System.out.println(name + "balance: " + money);
     }
 }
