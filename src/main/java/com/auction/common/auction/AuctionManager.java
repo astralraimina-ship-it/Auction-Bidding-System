@@ -7,7 +7,7 @@ public class AuctionManager {
     private ArrayList<Auction> runningAuctions = new ArrayList<>();
     private ArrayList<Auction> finishedAuctions = new ArrayList<>();
 
-    private AuctionManager manager = null;
+    public static AuctionManager manager = null;
 
     private AuctionManager(){}
 
@@ -17,7 +17,7 @@ public class AuctionManager {
         }
         return manager;
     }
-    public void addAuction(Auction auction){
+    public synchronized void addAuction(Auction auction){
         runningAuctions.add(auction);
     }
 }

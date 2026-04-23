@@ -7,7 +7,7 @@ import java.time.LocalTime;
 
 // Lớp này chứa thông tin về tên, giá và thời điểm đặt
 public class BidTransaction{
-    private User bidder;
+    private final User bidder;
     private double bidPrice;
     private LocalTime time;
 
