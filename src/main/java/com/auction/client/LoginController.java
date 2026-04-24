@@ -1,36 +1,50 @@
 package com.auction.client;
 
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
-import javafx.scene.control.Alert;
+import javafx.stage.Stage;
+import java.io.IOException;
 
 public class LoginController {
 
-    // 1. Khai báo các biến khớp với fx:id bên FXML
     @FXML private TextField txtUsername;
     @FXML private PasswordField txtPassword;
 
-    // 2. Hàm xử lý khi nhấn nút (tên hàm phải khớp với onAction bên FXML)
+    // Hàm này phải trùng tên với cái Long vừa gõ trong Scene Builder
     @FXML
     public void handleLogin() {
         String user = txtUsername.getText();
         String pass = txtPassword.getText();
 
-        // 3. Logic kiểm tra (Tạm thời kiểm tra cứng để hiểu luồng)
-        // This is a test profile
         if (user.equals("admin") && pass.equals("123")) {
-            showNotification("Thành công", "Chào mừng đã đăng nhập!");
-            // Sau này đoạn này sẽ là code để chuyển sang màn hình đấu giá
+            try {
+                // Chuyển sang Dashboard
+                FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/auction/ui/MainDashboard.fxml"));
+                Parent root = loader.load();
+
+                Stage stage = (Stage) txtUsername.getScene().getWindow();
+                stage.setScene(new Scene(root));
+                stage.setTitle("Hệ thống đấu giá UET - Dashboard");
+                stage.show();
+
+                System.out.println("✅ Đăng nhập thành công, đang chuyển cảnh...");
+            } catch (IOException e) {
+                e.printStackTrace();
+                showAlert("Lỗi", "Không tìm thấy file Dashboard! Kiểm tra lại đường dẫn.");
+            }
         } else {
-            showNotification("Thất bại", "Sai tên đăng nhập hoặc mật khẩu rồi!");
+            showAlert("Thất bại", "Sai tài khoản hoặc mật khẩu!");
         }
     }
 
-    private void showNotification(String title, String content) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+    private void showAlert(String title, String content) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle(title);
-        alert.setHeaderText(null);
         alert.setContentText(content);
         alert.showAndWait();
     }

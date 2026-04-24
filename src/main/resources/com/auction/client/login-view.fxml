@@ -1,10 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<?import javafx.scene.layout.VBox?>
 <?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
 
-<VBox alignment="CENTER" spacing="15.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.auction.client.LoginController">
-    <Label text="HỆ THỐNG ĐẤU GIÁ" style="-fx-font-weight: bold; -fx-font-size: 18px;"/>
-    <TextField fx:id="txtUsername" promptText="Tên đăng nhập" maxWidth="200"/>
-    <PasswordField fx:id="txtPassword" promptText="Mật khẩu" maxWidth="200"/>
-    <Button text="Đăng nhập" onAction="#handleLogin" style="-fx-background-color: #2196F3; -fx-text-fill: white;"/>
-</VBox>
+<AnchorPane prefHeight="300.0" prefWidth="400.0" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.auction.client.LoginController">
+    <children>
+        <Label layoutX="110.0" layoutY="40.0" text="ĐĂNG NHẬP UET">
+            <font>
+                <Font name="System Bold" size="22.0" />
+            </font>
+        </Label>
+        <TextField fx:id="txtUsername" layoutX="100.0" layoutY="100.0" prefWidth="200.0" promptText="Username (admin)" />
+        <PasswordField fx:id="txtPassword" layoutX="100.0" layoutY="145.0" prefWidth="200.0" promptText="Password (123)" />
+        <Button layoutX="100.0" layoutY="200.0" onAction="#handleLogin" prefWidth="200.0" style="-fx-background-color: #2196F3;" text="Đăng nhập" textFill="WHITE" />
+    </children>
+</AnchorPane>
