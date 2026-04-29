@@ -29,16 +29,30 @@
             <VBox spacing="10" style="-fx-padding: 15;">
                 <TableView fx:id="tableItems" VBox.vgrow="ALWAYS">
                     <columns>
-                        <TableColumn fx:id="colName" text="Tên sản phẩm" prefWidth="200" />
+                        <TableColumn fx:id="colItemName" text="Tên sản phẩm" prefWidth="200" />
                         <TableColumn fx:id="colCategory" text="Danh mục" prefWidth="120" />
                         <TableColumn fx:id="colDetails" text="Thông tin chi tiết" prefWidth="400" />
                     </columns>
                 </TableView>
             </VBox>
         </Tab>
+
         <Tab text="Quản lý người dùng">
-            <VBox alignment="CENTER" style="-fx-padding: 50;">
-                <Label text="Hệ thống quản lý User đang khởi tạo..." style="-fx-font-style: italic; -fx-text-fill: #7f8c8d;" />
+            <VBox spacing="15" style="-fx-padding: 15;">
+                <HBox alignment="CENTER_LEFT">
+                    <Label text="Danh sách tài khoản hệ thống" style="-fx-font-size: 18px; -fx-font-weight: bold;"/>
+                    <Region HBox.hgrow="ALWAYS" />
+                    <Button text="Duyệt Admin" style="-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold;"/>
+                </HBox>
+
+                <TableView fx:id="tableUsers" VBox.vgrow="ALWAYS">
+                    <columns>
+                        <TableColumn fx:id="colUsername" text="Tên đăng nhập" prefWidth="200" />
+                        <TableColumn fx:id="colRole" text="Vai trò" prefWidth="120" />
+                        <TableColumn fx:id="colStatus" text="Trạng thái" prefWidth="150" />
+                        <TableColumn fx:id="colUserBalance" text="Số dư (VNĐ)" prefWidth="150" />
+                    </columns>
+                </TableView>
             </VBox>
         </Tab>
     </TabPane>

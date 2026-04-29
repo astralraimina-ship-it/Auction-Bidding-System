@@ -9,6 +9,6 @@ public class Admin extends User {
 
     @Override
     public String getUserDetails() {
-        return "[ADMIN] " + getUsername();
+        return "[ADMIN] " + getUsername() + " | Trạng thái: " + getStatus();
     }
 }

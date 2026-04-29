@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+<?import javafx.collections.FXCollections?>
+<?import java.lang.String?>
+
+<VBox spacing="15" alignment="CENTER" prefHeight="500" prefWidth="400"
+      xmlns="http://javafx.com/javafx/8"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.auction.ui.RegisterController"
+      style="-fx-background-color: #ffffff;">
+
+    <padding>
+        <Insets top="40" right="50" bottom="40" left="50"/>
+    </padding>
+
+    <Label text="ĐĂNG KÝ THÀNH VIÊN"
+           style="-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;" />
+
+    <Separator />
+
+    <VBox spacing="10">
+        <Label text="Tên đăng nhập:" style="-fx-font-weight: bold;"/>
+        <TextField fx:id="txtUsername" promptText="Nhập username..."
+                   style="-fx-padding: 10; -fx-background-radius: 5;"/>
+
+        <Label text="Mật khẩu:" style="-fx-font-weight: bold;"/>
+        <PasswordField fx:id="txtPassword" promptText="Nhập mật khẩu..."
+                       style="-fx-padding: 10; -fx-background-radius: 5;"/>
+
+        <Label text="Vai trò người dùng:" style="-fx-font-weight: bold;"/>
+        <ComboBox fx:id="cbRole" promptText="-- Chọn vai trò --" maxWidth="Infinity"
+                  style="-fx-padding: 5; -fx-background-radius: 5;">
+            <items>
+                <FXCollections fx:factory="observableArrayList">
+                    <String fx:value="BIDDER" />
+                    <String fx:value="SELLER" />
+                    <String fx:value="ADMIN" />
+                </FXCollections>
+            </items>
+        </ComboBox>
+    </VBox>
+
+    <Button text="ĐĂNG KÝ NGAY" onAction="#handleRegister" maxWidth="Infinity"
+            style="-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold;
+                   -fx-padding: 12; -fx-background-radius: 5; -fx-cursor: hand;" />
+
+    <Hyperlink text="Đã có tài khoản? Quay lại đăng nhập" onAction="#goToLogin"
+               style="-fx-text-fill: #2980b9; -fx-underline: false;" />
+
+</VBox>
