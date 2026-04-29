@@ -48,24 +48,23 @@ public class DashboardController {
             System.out.println("Cảnh báo: Không có dữ liệu user nào từ Database!");
         }
     }
-
-    private void setupUserTable() {
-        // Lưu ý: Các chuỗi này PHẢI khớp với getter trong class User (ví dụ: getUsername -> "username")
-        colUsername.setCellValueFactory(new PropertyValueFactory<>("username"));
-        colRole.setCellValueFactory(new PropertyValueFactory<>("role"));
-        colStatus.setCellValueFactory(new PropertyValueFactory<>("status"));
-        colUserBalance.setCellValueFactory(new PropertyValueFactory<>("balance"));
-    }
-
     public void setUserData(String username) {
         this.currentUsername = username;
         refreshBalance();
     }
 
     private void refreshBalance() {
-        if (lblBalance != null && currentUsername != null) {
+        if (currentUsername != null) {
             double balance = userDAO.getUserBalance(currentUsername);
-            lblBalance.setText(String.format("%,.0f VNĐ", balance));
+
+            // Chỉ hiện và cập nhật nếu balance > 0 hoặc không phải admin
+            // Ở đây mình ẩn luôn cái nhãn nếu là 0 VNĐ cho admin
+            if (balance == 0 && "admin".equalsIgnoreCase(currentUsername)) {
+                lblBalance.setVisible(false);
+            } else {
+                lblBalance.setText(String.format("%,.0f VNĐ", balance));
+                lblBalance.setVisible(true);
+            }
         }
     }
 
