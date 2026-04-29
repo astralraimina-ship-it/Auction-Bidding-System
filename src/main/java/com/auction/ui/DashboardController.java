@@ -2,97 +2,160 @@ package com.auction.ui;
 
 import com.auction.common.user.User;
 import com.auction.database.UserDAO;
+import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.Label;
-import javafx.scene.control.TableColumn; // Thêm import này
-import javafx.scene.control.TableView;
+import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.stage.Stage;
 import java.io.IOException;
 
 public class DashboardController {
-    @FXML
-    private Label lblBalance;
-    @FXML
-    private TableView<User> tableUsers; // Đổi tên cho khớp logic
-    @FXML
-    private TableColumn<User, String> colUsername, colRole, colStatus;
-    @FXML
-    private TableColumn<User, Double> colUserBalance;
+    // Các thành phần giao diện
+    @FXML private Label lblBalance;
+    @FXML private TableView<User> tableUsers;
+    @FXML private TableColumn<User, String> colUsername, colRole, colStatus;
+    @FXML private TableColumn<User, Double> colUserBalance;
+    @FXML private ComboBox<String> comboFilter;
 
+    // Dữ liệu và DAO
     private UserDAO userDAO = new UserDAO();
     private String currentUsername;
+    private ObservableList<User> masterData = FXCollections.observableArrayList();
 
-    // CHỈ GIỮ 1 HÀM INITIALIZE DUY NHẤT
     @FXML
     public void initialize() {
-        System.out.println("Dashboard đang khởi tạo...");
+        System.out.println("Dashboard Admin đang khởi tạo...");
 
-        // 1. Cấu hình cột (Phải khớp với tên biến trong class User)
+        // 1. Cấu hình bảng và các cột (tô màu cho trạng thái)
+        setupUserTable();
+
+        // 2. Cấu hình bộ lọc ComboBox
+        if (comboFilter != null) {
+            comboFilter.getItems().addAll("Tất cả người dùng", "Đang chờ duyệt (PENDING)");
+            comboFilter.getSelectionModel().selectFirst();
+        }
+
+        // 3. Load dữ liệu ban đầu từ Database
+        loadInitialData();
+    }
+
+    private void setupUserTable() {
         colUsername.setCellValueFactory(new PropertyValueFactory<>("username"));
         colRole.setCellValueFactory(new PropertyValueFactory<>("role"));
         colStatus.setCellValueFactory(new PropertyValueFactory<>("status"));
         colUserBalance.setCellValueFactory(new PropertyValueFactory<>("balance"));
 
-        // 2. Lấy dữ liệu từ DAO và đưa vào bảng
-        ObservableList<User> userList = userDAO.getAllUsers();
+        // Custom Cell để tô màu cho cột Trạng thái
+        colStatus.setCellFactory(column -> new TableCell<User, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    if ("PENDING".equalsIgnoreCase(item)) {
+                        setStyle("-fx-text-fill: #e74c3c; -fx-font-weight: bold;"); // Đỏ đậm
+                    } else {
+                        setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold;"); // Xanh lá
+                    }
+                }
+            }
+        });
+    }
 
-        if (userList != null && !userList.isEmpty()) {
-            tableUsers.setItems(userList);
-            System.out.println("Đã nạp thành công " + userList.size() + " users.");
+    private void loadInitialData() {
+        masterData = userDAO.getAllUsers();
+        tableUsers.setItems(masterData);
+        System.out.println("Đã nạp thành công " + masterData.size() + " users.");
+    }
+
+    // Xử lý khi chọn bộ lọc trên ComboBox
+    @FXML
+    private void handleFilterChange() {
+        String selected = comboFilter.getValue();
+        if ("Đang chờ duyệt (PENDING)".equals(selected)) {
+            FilteredList<User> filteredData = new FilteredList<>(masterData,
+                    user -> "PENDING".equalsIgnoreCase(user.getStatus()));
+            tableUsers.setItems(filteredData);
         } else {
-            System.out.println("Cảnh báo: Không có dữ liệu user nào từ Database!");
+            tableUsers.setItems(masterData);
         }
     }
-    public void setUserData(String username) {
+
+    public void setUserData(String username, String role) {
         this.currentUsername = username;
-        refreshBalance();
+
+        // Nếu là Admin thì ẩn phần Mode/Balance cho đẹp
+        if ("ADMIN".equalsIgnoreCase(role)) {
+            lblBalance.setVisible(false);
+            lblBalance.setManaged(false); // Co layout lại
+        } else {
+            refreshBalance();
+        }
     }
 
     private void refreshBalance() {
-        if (currentUsername != null) {
+        if (currentUsername != null && lblBalance != null) {
             double balance = userDAO.getUserBalance(currentUsername);
+            lblBalance.setText(String.format("%,.0f VNĐ", balance));
+            lblBalance.setVisible(true);
+            lblBalance.setManaged(true);
+        }
+    }
 
-            // Chỉ hiện và cập nhật nếu balance > 0 hoặc không phải admin
-            // Ở đây mình ẩn luôn cái nhãn nếu là 0 VNĐ cho admin
-            if (balance == 0 && "admin".equalsIgnoreCase(currentUsername)) {
-                lblBalance.setVisible(false);
-            } else {
-                lblBalance.setText(String.format("%,.0f VNĐ", balance));
-                lblBalance.setVisible(true);
-            }
+    @FXML
+    private void handleApproveUser() {
+        User selectedUser = tableUsers.getSelectionModel().getSelectedItem();
+
+        if (selectedUser == null) {
+            showAlert("Thông báo", "Vui lòng chọn một người dùng từ danh sách!");
+            return;
+        }
+
+        if (!"ADMIN".equalsIgnoreCase(selectedUser.getRole())) {
+            showAlert("Lỗi", "Nút này chỉ dùng để duyệt cho tài khoản ADMIN!");
+            return;
+        }
+
+        if ("APPROVED".equalsIgnoreCase(selectedUser.getStatus())) {
+            showAlert("Thông báo", "Tài khoản này đã được duyệt trước đó.");
+            return;
+        }
+
+        if (userDAO.approveUser(selectedUser.getUsername())) {
+            System.out.println("Duyệt thành công: " + selectedUser.getUsername());
+            // Cập nhật lại dữ liệu
+            loadInitialData();
+            handleFilterChange(); // Giữ nguyên bộ lọc hiện tại
         }
     }
 
     @FXML
     private void handleLogout() {
         try {
-            // 1. Load file login.fxml
-            // Đảm bảo đường dẫn này đúng với cấu trúc thư mục của bạn
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/auction/ui/login.fxml"));
             Parent root = loader.load();
-
-            // 2. Lấy Stage hiện tại một cách an toàn
-            Stage stage;
-            if (tableUsers != null && tableUsers.getScene() != null) {
-                stage = (Stage) tableUsers.getScene().getWindow();
-            } else {
-                stage = (Stage) lblBalance.getScene().getWindow();
-            }
-
-            // 3. Chuyển cảnh
+            Stage stage = (Stage) tableUsers.getScene().getWindow();
             stage.setScene(new Scene(root));
             stage.setTitle("UET Auction - Đăng nhập");
             stage.show();
-
-            System.out.println("Đã đăng xuất tài khoản!");
         } catch (IOException e) {
-            System.err.println("Lỗi chuyển màn hình login: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    private void showAlert(String title, String content) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(content);
+        alert.showAndWait();
     }
 }

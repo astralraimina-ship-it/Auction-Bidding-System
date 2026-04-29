@@ -5,6 +5,7 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.stage.Stage;
@@ -21,13 +22,19 @@ public class LoginController {
         String user = txtUsername.getText();
         String pass = txtPassword.getText();
 
-        // authenticate trả về role nếu thành công, null nếu thất bại hoặc chưa APPROVED
+        if (user.isEmpty() || pass.isEmpty()) {
+            showAlert("Lỗi đăng nhập", "Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu!");
+            return;
+        }
+
         String role = userDAO.authenticate(user, pass);
 
         if (role != null) {
+            // Đăng nhập thành công -> Chuyển màn hình
             loadDashboard(role, user);
         } else {
-            System.out.println("Đăng nhập thất bại: Sai thông tin hoặc tài khoản chờ duyệt!");
+            // Đăng nhập thất bại -> HIỆN THÔNG BÁO Ở ĐÂY
+            showAlert("Đăng nhập thất bại", "Sai tên đăng nhập, mật khẩu hoặc tài khoản chưa được duyệt!");
         }
     }
 
@@ -58,7 +65,7 @@ public class LoginController {
 
             // Lấy controller của dashboard để truyền username sang
             DashboardController controller = loader.getController();
-            controller.setUserData(username);
+            controller.setUserData(username,role);
 
             Stage stage = (Stage) txtUsername.getScene().getWindow();
             stage.setScene(new Scene(root));
@@ -66,5 +73,12 @@ public class LoginController {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+    private void showAlert(String title, String content) {
+        Alert alert = new Alert(Alert.AlertType.ERROR); // Loại ERROR sẽ có icon dấu X đỏ
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(content);
+        alert.showAndWait();
     }
 }

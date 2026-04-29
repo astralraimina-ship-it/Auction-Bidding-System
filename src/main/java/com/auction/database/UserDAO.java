@@ -80,6 +80,19 @@ public class UserDAO {
         } catch (Exception e) { e.printStackTrace(); }
         return 0.0;
     }
+    // Trong UserDAO.java
+    public boolean approveUser(String username) {
+        String sql = "UPDATE users SET status = 'APPROVED' WHERE username = ?";
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, username);
+            return ps.executeUpdate() > 0; // Trả về true nếu cập nhật thành công
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
 
     // 5. Hàm cập nhật trạng thái (Dùng khi Admin duyệt User)
     public boolean updateUserStatus(int userId, String newStatus) {
