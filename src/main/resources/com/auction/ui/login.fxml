@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox alignment="CENTER" spacing="10" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.auction.ui.LoginController">
+    <Label text="UET Auction System" style="-fx-font-size: 20px; -fx-font-weight: bold;"/>
+    <TextField fx:id="txtUsername" promptText="Username" maxWidth="200"/>
+    <PasswordField fx:id="txtPassword" promptText="Password" maxWidth="200"/>
+    <Button text="Login" onAction="#handleLogin" />
+    <Label fx:id="lblStatus" textFill="red" />
+</VBox>

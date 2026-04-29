@@ -1,15 +1,14 @@
 package com.auction.common.user;
 
-import com.auction.common.auction.Auction;
-
 public class Admin extends User {
-    public Admin(String _name, String _id) {
-        super(_name, _id); // Kế thừa id và name từ Entity thông qua User
+    private static final long serialVersionUID = 1L;
+
+    public Admin(int id, String username, String password) {
+        super(id, username, password, "ADMIN");
     }
 
-    // Admin không có balance, không có subtract/addAmount
-    // Thay vào đó, Admin có các hàm đặc quyền:
-    public void cancelAuction(Auction auction) {
-        // Logic để hủy một phiên đấu giá bất kỳ
+    @Override
+    public String getUserDetails() {
+        return "[ADMIN] " + getUsername();
     }
 }

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<VBox spacing="20" prefHeight="650" prefWidth="1000"
+      xmlns="http://javafx.com/javafx/8"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.auction.ui.DashboardController"
+      style="-fx-background-color: #fff5f5;">
+
+    <padding>
+        <Insets top="25" right="30" bottom="25" left="30"/>
+    </padding>
+
+    <HBox alignment="CENTER_LEFT" style="-fx-background-color: #c0392b; -fx-padding: 15; -fx-background-radius: 10;">
+        <VBox>
+            <Label text="HỆ THỐNG QUẢN TRỊ VIÊN"
+                   style="-fx-font-size: 26px; -fx-font-weight: bold; -fx-text-fill: white;" />
+            <Label text="Quản trị toàn bộ sàn đấu giá UET" style="-fx-font-size: 13px; -fx-text-fill: #ecf0f1;" />
+        </VBox>
+        <Region HBox.hgrow="ALWAYS" />
+        <Label fx:id="lblBalance" text="MODE: ADMIN" style="-fx-text-fill: white; -fx-font-weight: bold; -fx-border-color: white; -fx-padding: 5 15; -fx-border-radius: 20;" />
+    </HBox>
+
+    <TabPane VBox.vgrow="ALWAYS" tabClosingPolicy="UNAVAILABLE">
+        <Tab text="Quản lý sản phẩm">
+            <VBox spacing="10" style="-fx-padding: 15;">
+                <TableView fx:id="tableItems" VBox.vgrow="ALWAYS">
+                    <columns>
+                        <TableColumn fx:id="colName" text="Tên sản phẩm" prefWidth="200" />
+                        <TableColumn fx:id="colCategory" text="Danh mục" prefWidth="120" />
+                        <TableColumn fx:id="colDetails" text="Thông tin chi tiết" prefWidth="400" />
+                    </columns>
+                </TableView>
+            </VBox>
+        </Tab>
+        <Tab text="Quản lý người dùng">
+            <VBox alignment="CENTER" style="-fx-padding: 50;">
+                <Label text="Hệ thống quản lý User đang khởi tạo..." style="-fx-font-style: italic; -fx-text-fill: #7f8c8d;" />
+            </VBox>
+        </Tab>
+    </TabPane>
+
+    <HBox alignment="CENTER_RIGHT" spacing="15">
+        <Button text="Đăng xuất" onAction="#handleLogout"
+                style="-fx-background-color: #2c3e50; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 25;" />
+    </HBox>
+</VBox>
