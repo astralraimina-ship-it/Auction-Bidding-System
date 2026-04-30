@@ -20,11 +20,26 @@
                    style="-fx-font-size: 26px; -fx-font-weight: bold; -fx-text-fill: #2980b9;" />
             <Label text="Sàn đấu giá trực tuyến dành cho sinh viên" style="-fx-font-size: 13px; -fx-text-fill: #7f8c8d;" />
         </VBox>
+
         <Region HBox.hgrow="ALWAYS" />
-        <VBox alignment="CENTER_RIGHT" style="-fx-background-color: white; -fx-padding: 10 20; -fx-background-radius: 10; -fx-border-color: #dcdde1; -fx-border-radius: 10;">
-            <Label text="Số dư hiện có" style="-fx-font-size: 12px; -fx-text-fill: #95a5a6;" />
-            <Label fx:id="lblBalance" text="0.00 VNĐ"
-                   style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #27ae60;" />
+
+        <!-- Cụm bên phải: Số dư và các nút giao dịch -->
+        <VBox alignment="CENTER_RIGHT" spacing="10">
+            <VBox alignment="CENTER_RIGHT" style="-fx-background-color: white; -fx-padding: 10 20; -fx-background-radius: 10; -fx-border-color: #dcdde1; -fx-border-radius: 10;">
+                <Label text="Số dư hiện có" style="-fx-font-size: 12px; -fx-text-fill: #95a5a6;" />
+                <Label fx:id="lblBalance" text="0 VNĐ"
+                       style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #27ae60;" />
+            </VBox>
+
+            <!-- HBox chứa 2 nút Nạp và Rút nằm ngang nhau -->
+            <HBox spacing="10" alignment="CENTER_RIGHT">
+                <Button text="Nạp tiền" onAction="#handleOpenDeposit"
+                        style="-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5; -fx-cursor: hand;"
+                        prefWidth="100" />
+                <Button text="Rút tiền" onAction="#handleOpenWithdraw"
+                        style="-fx-background-color: #e67e22; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5; -fx-cursor: hand;"
+                        prefWidth="100" />
+            </HBox>
         </VBox>
     </HBox>
 
@@ -42,6 +57,6 @@
 
     <HBox alignment="CENTER_RIGHT" spacing="15">
         <Button text="Đăng xuất" onAction="#handleLogout"
-                style="-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 20;" />
+                style="-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 20; -fx-background-radius: 5; -fx-cursor: hand;" />
     </HBox>
 </VBox>

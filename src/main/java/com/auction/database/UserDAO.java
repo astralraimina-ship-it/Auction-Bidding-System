@@ -40,13 +40,24 @@ public class UserDAO {
 
     // 2. Hàm đăng ký User mới - GIẢI QUYẾT LỖI ĐỎ Ở RegisterController
     public boolean register(String username, String password, String role) {
-        // Khi đăng ký mới, status mặc định là 'PENDING'
-        String sql = "INSERT INTO users (username, password, role, status, balance) VALUES (?, ?, ?, 'PENDING', 0)";
+        // Logic: Nếu là BIDDER hoặc SELLER thì cho APPROVED luôn
+        // Chỉ có ADMIN (hoặc role lạ) mới phải PENDING
+        String defaultStatus = "APPROVED";
+        if ("ADMIN".equalsIgnoreCase(role)) {
+            defaultStatus = "PENDING";
+        }
+
+        // Chỗ VALUES mình đổi 'PENDING' thành dấu ? để truyền biến vào
+        String sql = "INSERT INTO users (username, password, role, status, balance) VALUES (?, ?, ?, ?, 0)";
+
         try (Connection conn = DBContext.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
+
             ps.setString(1, username);
             ps.setString(2, password);
             ps.setString(3, role.toUpperCase());
+            ps.setString(4, defaultStatus); // Truyền status đã được xử lý logic
+
             return ps.executeUpdate() > 0;
         } catch (Exception e) {
             e.printStackTrace();
@@ -101,6 +112,51 @@ public class UserDAO {
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, newStatus);
             ps.setInt(2, userId);
+            return ps.executeUpdate() > 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+    public boolean requestDeposit(String username, double amount) {
+        // Nạp tiền thì phí = 0, net_amount = amount luôn
+        String sql = "INSERT INTO transactions (username, type, amount, fee, net_amount, status) " +
+                "VALUES (?, 'DEPOSIT', ?, 0, ?, 'PENDING')";
+
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, username);
+            ps.setDouble(2, amount);
+            ps.setDouble(3, amount); // net_amount bằng amount vì nạp không mất phí
+
+            return ps.executeUpdate() > 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+    public boolean requestWithdraw(String username, double amount) {
+        double fee = amount * 0.1; // Phí 10%
+        double netAmount = amount - fee; // Số tiền thực nhận
+
+        // Kiểm tra số dư trước khi cho rút
+        double currentBalance = getUserBalance(username);
+        if (currentBalance < amount) {
+            return false; // Không đủ tiền
+        }
+
+        String sql = "INSERT INTO transactions (username, type, amount, fee, net_amount, status) " +
+                "VALUES (?, 'WITHDRAW', ?, ?, ?, 'PENDING')";
+
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, username);
+            ps.setDouble(2, amount);
+            ps.setDouble(3, fee);
+            ps.setDouble(4, netAmount);
+
             return ps.executeUpdate() > 0;
         } catch (Exception e) {
             e.printStackTrace();

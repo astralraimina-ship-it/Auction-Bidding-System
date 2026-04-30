@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+
+<VBox alignment="CENTER" spacing="20.0" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.auction.ui.TransactionController" prefWidth="350.0" prefHeight="300.0"
+      style="-fx-padding: 30; -fx-background-color: white; -fx-background-radius: 10;">
+
+    <!-- Tiêu đề thay đổi linh hoạt -->
+    <Text fx:id="txtTitle" text="GIAO DỊCH"
+          style="-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;" />
+
+    <VBox spacing="8.0">
+        <Label text="Nhập số tiền (VNĐ):" style="-fx-font-weight: bold;" />
+        <TextField fx:id="txtAmount" promptText="Ví dụ: 100000"
+                   style="-fx-padding: 10; -fx-background-radius: 5;" />
+
+        <!-- Nhãn hiển thị phí - Mặc định ẩn, chỉ hiện khi Rút tiền -->
+        <Label fx:id="lblFeeNote" text="* Phí rút tiền: 10%"
+               style="-fx-text-fill: #e67e22; -fx-font-size: 11px; -fx-font-style: italic;"
+               visible="false" />
+    </VBox>
+
+    <Button fx:id="btnSubmit" text="Xác nhận" onAction="#handleTransaction"
+            style="-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10; -fx-background-radius: 5; -fx-cursor: hand;"
+            maxWidth="Infinity" />
+
+    <Label fx:id="lblStatus" text="" wrapText="true" textAlignment="CENTER"
+           style="-fx-text-fill: #e74c3c; -fx-font-size: 13px;" />
+</VBox>
