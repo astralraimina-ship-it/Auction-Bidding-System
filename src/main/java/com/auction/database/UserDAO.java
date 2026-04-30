@@ -1,6 +1,7 @@
 package com.auction.database;
 
 import com.auction.common.user.*;
+import com.auction.transaction.Transaction;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import java.sql.*;
@@ -158,6 +159,73 @@ public class UserDAO {
             ps.setDouble(4, netAmount);
 
             return ps.executeUpdate() > 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+    public ObservableList<Transaction> getPendingTransactions() {
+        ObservableList<Transaction> list = FXCollections.observableArrayList();
+        String sql = "SELECT * FROM transactions WHERE status = 'PENDING'";
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                list.add(new Transaction(
+                        rs.getInt("id"),
+                        rs.getString("username"),
+                        rs.getString("type"),
+                        rs.getDouble("amount"),
+                        rs.getDouble("fee"),
+                        rs.getDouble("net_amount"),
+                        rs.getString("status")
+                ));
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        return list;
+    }
+    public boolean approveTransaction(Transaction t) {
+        String updateTrans = "UPDATE transactions SET status = 'APPROVED' WHERE id = ?";
+        String updateUser = "";
+
+        if (t.getType().equals("DEPOSIT")) {
+            updateUser = "UPDATE users SET balance = balance + ? WHERE username = ?";
+        } else {
+            updateUser = "UPDATE users SET balance = balance - ? WHERE username = ?";
+        }
+
+        // Dùng Transaction (Database Transaction) để đảm bảo an toàn dữ liệu
+        // Nếu nạp tiền thành công mà update user lỗi thì phải rollback
+        try (Connection conn = DBContext.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                // 1. Update trạng thái giao dịch
+                PreparedStatement ps1 = conn.prepareStatement(updateTrans);
+                ps1.setInt(1, t.getId());
+                ps1.executeUpdate();
+
+                // 2. Update tiền của User
+                PreparedStatement ps2 = conn.prepareStatement(updateUser);
+                ps2.setDouble(1, t.getAmount());
+                ps2.setString(2, t.getUsername());
+                ps2.executeUpdate();
+
+                conn.commit();
+                return true;
+            } catch (Exception e) {
+                conn.rollback();
+                return false;
+            }
+        } catch (Exception e) { return false; }
+    }
+    public boolean rejectTransaction(int transactionId) {
+        String sql = "UPDATE transactions SET status = 'REJECTED' WHERE id = ?";
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, transactionId);
+            return ps.executeUpdate() > 0;
+
         } catch (Exception e) {
             e.printStackTrace();
             return false;

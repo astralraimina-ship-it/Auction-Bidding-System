@@ -12,7 +12,7 @@ module com.auction {
 
     // 3. Cho phép JavaFX load các file FXML từ package ui
     opens com.auction.ui to javafx.fxml;
-
+    opens com.auction.transaction to javafx.base;
     // Nếu bạn có dùng PropertyValueFactory cho các class trong database (ít khi dùng nhưng nên phòng hờ)
     // opens com.auction.database to javafx.base;
 
