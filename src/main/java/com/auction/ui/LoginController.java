@@ -19,8 +19,8 @@ public class LoginController {
 
     @FXML
     private void handleLogin() {
-        String user = txtUsername.getText();
-        String pass = txtPassword.getText();
+        String user = txtUsername.getText().trim();
+        String pass = txtPassword.getText().trim();
 
         if (user.isEmpty() || pass.isEmpty()) {
             showAlert("Lỗi đăng nhập", "Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu!");
@@ -30,10 +30,8 @@ public class LoginController {
         String role = userDAO.authenticate(user, pass);
 
         if (role != null) {
-            // Đăng nhập thành công -> Chuyển màn hình
             loadDashboard(role, user);
         } else {
-            // Đăng nhập thất bại -> HIỆN THÔNG BÁO Ở ĐÂY
             showAlert("Đăng nhập thất bại", "Sai tên đăng nhập, mật khẩu hoặc tài khoản chưa được duyệt!");
         }
     }
@@ -41,41 +39,44 @@ public class LoginController {
     @FXML
     private void goToRegister() {
         try {
-            // Chuyển sang màn hình Register.fxml
+            // Đảm bảo đường dẫn file FXML này là chính xác trong project của Long
             Parent root = FXMLLoader.load(getClass().getResource("/com/auction/ui/Register.fxml"));
             Stage stage = (Stage) txtUsername.getScene().getWindow();
             stage.setScene(new Scene(root));
             stage.setTitle("UET Auction - Đăng ký");
         } catch (IOException e) {
             e.printStackTrace();
+            showAlert("Lỗi", "Không thể mở màn hình đăng ký!");
         }
     }
 
     private void loadDashboard(String role, String username) {
         try {
-            String fxmlFile = "";
-            switch (role.toUpperCase()) {
-                case "ADMIN": fxmlFile = "admin_dashboard.fxml"; break;
-                case "SELLER": fxmlFile = "seller_dashboard.fxml"; break;
-                case "BIDDER": fxmlFile = "main_dashboard.fxml"; break;
-            }
+            String fxmlFile = switch (role.toUpperCase()) {
+                case "ADMIN" -> "admin_dashboard.fxml";
+                case "SELLER" -> "seller_dashboard.fxml";
+                default -> "main_dashboard.fxml";
+            };
 
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/auction/ui/" + fxmlFile));
             Parent root = loader.load();
 
-            // Lấy controller của dashboard để truyền username sang
+            // Truyền dữ liệu sang DashboardController (Nhớ sửa hàm này bên kia thành 2 tham số nhé)
             DashboardController controller = loader.getController();
-            controller.setUserData(username,role);
+            controller.setUserData(username, role);
 
             Stage stage = (Stage) txtUsername.getScene().getWindow();
             stage.setScene(new Scene(root));
+            stage.setTitle("Hệ thống đấu giá UET - " + role);
             stage.show();
         } catch (IOException e) {
             e.printStackTrace();
+            showAlert("Lỗi hệ thống", "Không thể tải giao diện dashboard!");
         }
     }
+
     private void showAlert(String title, String content) {
-        Alert alert = new Alert(Alert.AlertType.ERROR); // Loại ERROR sẽ có icon dấu X đỏ
+        Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle(title);
         alert.setHeaderText(null);
         alert.setContentText(content);

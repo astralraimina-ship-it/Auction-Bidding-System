@@ -141,8 +141,11 @@ public class DashboardController {
 
     // --- CÁC HÀM DÀNH CHO USER (BIDDER/SELLER) ---
 
-    public void setUserData(String username) {
+    public void setUserData(String username, String role) { // Thêm String role vào đây
         this.currentUsername = username;
+        // Bạn có thể lưu role vào một biến private nếu cần dùng sau này
+        // this.currentRole = role;
+
         refreshBalance();
     }
 
