@@ -1,7 +1,6 @@
 package com.auction.database;
 
-import com.auction.common.item.Item;
-import com.auction.common.item.ItemFactory;
+import com.auction.common.item.*;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import java.sql.*;
@@ -9,45 +8,117 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ItemDAO {
+
+    // 1. Hàm lấy sản phẩm - Chỉ lấy những sản phẩm đang OPEN và còn thời gian
     public ObservableList<Item> getAllItems() {
         ObservableList<Item> list = FXCollections.observableArrayList();
-        String sql = "SELECT * FROM items";
+        // Sửa SQL để lọc sản phẩm "biến mất" khi hết hạn hoặc đã bán
+        String sql = "SELECT * FROM items WHERE status = 'OPEN' AND end_time > NOW()";
 
         try (Connection conn = DBContext.getConnection();
-             Statement st = conn.createStatement();
-             ResultSet rs = st.executeQuery(sql)) {
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
 
             while (rs.next()) {
-                String category = rs.getString("category");
-
-                // 1. Đóng gói dữ liệu chung
-                Map<String, Object> commonData = new HashMap<>();
-                commonData.put("id", rs.getInt("id"));
-                commonData.put("name", rs.getString("name"));
-                commonData.put("description", rs.getString("description"));
-                commonData.put("startPrice", rs.getDouble("startPrice"));
-                commonData.put("binPrice", rs.getDouble("binPrice"));
-                commonData.put("step", rs.getDouble("step"));
-
-                // 2. Đóng gói dữ liệu riêng (Lấy hết các cột, class nào cần gì thì Factory tự lấy nấy)
-                Map<String, Object> specificData = new HashMap<>();
-                specificData.put("brand", rs.getString("brand"));
-                specificData.put("warranty", rs.getString("warranty"));
-                specificData.put("state", rs.getString("state"));
-                specificData.put("artist", rs.getString("artist"));
-                specificData.put("medium", rs.getString("medium"));
-                specificData.put("modelYear", rs.getInt("modelYear"));
-                specificData.put("engineType", rs.getString("engineType"));
-                specificData.put("age", rs.getInt("age"));
-                specificData.put("mileage", rs.getDouble("mileage"));
-
-                // 3. Nhờ Factory tạo Object
-                Item item = ItemFactory.createItem(category, commonData, specificData);
-                list.add(item);
+                try {
+                    list.add(mapResultSetToItem(rs));
+                } catch (Exception e) {
+                    System.err.println("Lỗi tạo Item tại ID: " + rs.getInt("id") + " - " + e.getMessage());
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
         return list;
+    }
+
+    // 2. Hàm thêm sản phẩm mới (Đã cập nhật end_time và status)
+    public boolean addItem(Item item, int sellerId) {
+        // SQL mới: 18 cột (6 chung + 2 mới + 9 riêng + 1 seller_id)
+        String sql = "INSERT INTO items (name, description, startPrice, binPrice, step, category, " +
+                "end_time, status, " + // 2 cột mới (7, 8)
+                "brand, warranty, state, artist, medium, modelYear, engineType, age, mileage, " + // (9-17)
+                "seller_id) " + // (18)
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            // Dữ liệu chung (1-6)
+            ps.setString(1, item.getName());
+            ps.setString(2, item.getDescription());
+            ps.setDouble(3, item.getStartPrice());
+            ps.setDouble(4, item.getBinPrice());
+            ps.setDouble(5, item.getStep());
+            ps.setString(6, item.getCategory());
+
+            // 2 Cột mới (7-8)
+            ps.setTimestamp(7, item.getEndTime());
+            ps.setString(8, item.getStatus()); // Mặc định là "OPEN" từ Controller truyền sang
+
+            // Xử lý dữ liệu riêng (Bắt đầu từ index 9 đến 17)
+            setSpecificData(ps, item);
+
+            // Cột 18: seller_id
+            ps.setInt(18, sellerId);
+
+            return ps.executeUpdate() > 0;
+        } catch (Exception e) {
+            System.err.println("Lỗi khi INSERT Item: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    private void setSpecificData(PreparedStatement ps, Item item) throws SQLException {
+        // Reset 9 cột riêng (từ index 9 đến 17 theo SQL mới)
+        for (int i = 9; i <= 17; i++) {
+            ps.setNull(i, Types.NULL);
+        }
+
+        if (item instanceof Vehicle v) {
+            ps.setString(9, v.getBrand());
+            ps.setString(11, v.getState());
+            ps.setInt(14, v.getModelYear());
+            ps.setString(15, v.getEngineType());
+            ps.setInt(16, v.getAge());
+            ps.setDouble(17, v.getMileage());
+        } else if (item instanceof Art a) {
+            ps.setString(12, a.getArtist());
+            ps.setString(13, a.getMedium());
+            ps.setString(11, a.getState()); // Tranh cũng có tình trạng
+        } else if (item instanceof Electronics e) {
+            ps.setString(9, e.getBrand());
+            ps.setString(10, e.getWarranty());
+            ps.setString(11, e.getState());
+        }
+    }
+
+    private Item mapResultSetToItem(ResultSet rs) throws Exception {
+        String category = rs.getString("category");
+        Map<String, Object> common = new HashMap<>();
+        common.put("id", rs.getInt("id"));
+        common.put("name", rs.getString("name"));
+        common.put("description", rs.getString("description"));
+        common.put("startPrice", rs.getDouble("startPrice"));
+        common.put("binPrice", rs.getDouble("binPrice"));
+        common.put("step", rs.getDouble("step"));
+
+        // Đọc thêm 2 cột mới để Factory khởi tạo Object hoàn chỉnh
+        common.put("endTime", rs.getTimestamp("end_time"));
+        common.put("status", rs.getString("status"));
+
+        Map<String, Object> specific = new HashMap<>();
+        specific.put("brand", rs.getString("brand"));
+        specific.put("warranty", rs.getString("warranty"));
+        specific.put("state", rs.getString("state"));
+        specific.put("artist", rs.getString("artist"));
+        specific.put("medium", rs.getString("medium"));
+        specific.put("modelYear", rs.getInt("modelYear"));
+        specific.put("engineType", rs.getString("engineType"));
+        specific.put("age", rs.getInt("age"));
+        specific.put("mileage", rs.getDouble("mileage"));
+
+        return ItemFactory.createItem(category, common, specific);
     }
 }

@@ -1,9 +1,10 @@
 package com.auction.ui;
 
+import com.auction.common.item.Item;
 import com.auction.common.user.User;
+import com.auction.database.ItemDAO;
 import com.auction.database.UserDAO;
 import com.auction.transaction.Transaction;
-import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -16,88 +17,103 @@ import java.io.IOException;
 
 public class DashboardController {
 
-    // --- Thành phần chung ---
+    // --- Biến UI cho Sản phẩm (Bảng quản lý sản phẩm) ---
+    @FXML private TableView<Item> tableItems;
+    @FXML private TableColumn<Item, String> colName, colCategory, colDetails;
+    @FXML private TableColumn<Item, Double> colBinPrice;
     @FXML private Label lblBalance;
 
-    // --- Thành phần Admin: Quản lý User ---
+    // --- Admin: Quản lý User ---
     @FXML private TableView<User> tableUsers;
     @FXML private TableColumn<User, String> colUsername, colRole, colStatus;
     @FXML private TableColumn<User, Double> colUserBalance;
 
-    // --- Thành phần Admin: Quản lý Giao dịch ---
+    // --- Admin: Quản lý Giao dịch ---
     @FXML private TableView<Transaction> tableTransactions;
     @FXML private TableColumn<Transaction, String> colTransUser, colTransType;
     @FXML private TableColumn<Transaction, Double> colTransAmount, colTransNet;
 
     private UserDAO userDAO = new UserDAO();
+    private ItemDAO itemDAO = new ItemDAO();
+    private int userId;
     private String currentUsername;
 
     @FXML
     public void initialize() {
-        // 1. Setup bảng User
-        if (tableUsers != null) {
-            setupAdminTable();
-        }
-
-        // 2. Setup bảng Giao dịch
-        if (tableTransactions != null) {
-            setupTransactionTable();
-
-            // DÒNG NÀY ĐỂ KIỂM TRA:
-            // Nếu load xong mà console in ra > 0 thì là bảng có dữ liệu
-            System.out.println("Khởi tạo Admin: Đang nạp dữ liệu giao dịch...");
-            loadTransactionData();
-        }
+        // Kiểm tra từng bảng để tránh lỗi khi dùng chung Controller cho nhiều màn hình FXML
+        if (tableItems != null) setupItemTable();
+        if (tableUsers != null) setupAdminTable();
+        if (tableTransactions != null) setupTransactionTable();
     }
 
-    /**
-     * Thiết lập các cột cho bảng User
-     */
+    // --- LOGIC SELLER/ADMIN: BẢNG SẢN PHẨM ---
+    private void setupItemTable() {
+        // FIX: Đảm bảo PropertyValueFactory khớp với tên các hàm Getter trong class Item/Other/Vehicle
+        if (colName != null) {
+            colName.setCellValueFactory(new PropertyValueFactory<>("name")); // Gọi getName()
+        }
+        if (colCategory != null) {
+            colCategory.setCellValueFactory(new PropertyValueFactory<>("category")); // Gọi getCategory()
+        }
+        if (colDetails != null) {
+            // FIX QUAN TRỌNG: Phải là "itemDetails" để JavaFX tự gọi hàm getItemDetails()
+            colDetails.setCellValueFactory(new PropertyValueFactory<>("itemDetails"));
+        }
+        if (colBinPrice != null) {
+            colBinPrice.setCellValueFactory(new PropertyValueFactory<>("binPrice")); // Gọi getBinPrice()
+        }
+
+        refreshTable();
+    }
+
+    // --- LOGIC ADMIN: QUẢN LÝ NGƯỜI DÙNG & GIAO DỊCH ---
     private void setupAdminTable() {
-        try {
-            colUsername.setCellValueFactory(new PropertyValueFactory<>("username"));
-            colRole.setCellValueFactory(new PropertyValueFactory<>("role"));
-            colStatus.setCellValueFactory(new PropertyValueFactory<>("status"));
-            colUserBalance.setCellValueFactory(new PropertyValueFactory<>("balance"));
+        if (colUsername != null) colUsername.setCellValueFactory(new PropertyValueFactory<>("username"));
+        if (colRole != null) colRole.setCellValueFactory(new PropertyValueFactory<>("role"));
+        if (colStatus != null) colStatus.setCellValueFactory(new PropertyValueFactory<>("status"));
+        if (colUserBalance != null) colUserBalance.setCellValueFactory(new PropertyValueFactory<>("balance"));
 
-            ObservableList<User> userList = userDAO.getAllUsers();
-            if (userList != null) {
-                tableUsers.setItems(userList);
-            }
-        } catch (Exception e) {
-            System.err.println("Lỗi setup bảng Admin User: " + e.getMessage());
-        }
+        if (tableUsers != null) tableUsers.setItems(userDAO.getAllUsers());
     }
 
-    /**
-     * Thiết lập các cột cho bảng Giao dịch (Nạp/Rút)
-     */
     private void setupTransactionTable() {
+        if (colTransUser != null) colTransUser.setCellValueFactory(new PropertyValueFactory<>("username"));
+        if (colTransType != null) colTransType.setCellValueFactory(new PropertyValueFactory<>("type"));
+        if (colTransAmount != null) colTransAmount.setCellValueFactory(new PropertyValueFactory<>("amount"));
+        if (colTransNet != null) colTransNet.setCellValueFactory(new PropertyValueFactory<>("netAmount"));
+
+        loadTransactionData();
+    }
+
+    // --- CÁC HÀM XỬ LÝ SỰ KIỆN ---
+
+    @FXML
+    private void onAddProduct() {
         try {
-            colTransUser.setCellValueFactory(new PropertyValueFactory<>("username"));
-            colTransType.setCellValueFactory(new PropertyValueFactory<>("type"));
-            colTransAmount.setCellValueFactory(new PropertyValueFactory<>("amount"));
-            colTransNet.setCellValueFactory(new PropertyValueFactory<>("netAmount"));
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/auction/ui/add_item.fxml"));
+            Parent root = loader.load();
+            AddItemController controller = loader.getController();
+            if (controller != null) controller.setUserId(this.userId);
 
-            loadTransactionData();
-            System.out.println("Đã setup bảng giao dịch thành công.");
-        } catch (Exception e) {
-            System.err.println("Lỗi setup bảng Giao dịch: " + e.getMessage());
+            Stage stage = new Stage();
+            stage.setTitle("Đăng sản phẩm mới - UET Auction");
+            stage.initModality(Modality.APPLICATION_MODAL);
+            stage.setScene(new Scene(root));
+            stage.showAndWait();
+
+            refreshTable();
+        } catch (IOException e) {
+            showAlert("Lỗi", "Không thể mở màn hình đăng sản phẩm. Hãy kiểm tra đường dẫn file add_item.fxml!");
         }
     }
 
-    /**
-     * Nạp dữ liệu thực tế từ Database vào bảng Giao dịch
-     */
-    private void loadTransactionData() {
-        if (tableTransactions != null) {
-            ObservableList<Transaction> pendingList = userDAO.getPendingTransactions();
-            tableTransactions.setItems(pendingList);
-            tableTransactions.refresh();
+    private void refreshTable() {
+        if (tableItems != null) {
+            // Lấy toàn bộ danh sách từ DB và đổ vào Table
+            tableItems.setItems(itemDAO.getAllItems());
+            tableItems.refresh();
         }
     }
-
-    // --- CÁC HÀM XỬ LÝ GIAO DỊCH DÀNH CHO ADMIN ---
 
     @FXML
     private void handleApproveTrans() {
@@ -106,13 +122,12 @@ public class DashboardController {
             showInfoAlert("Thông báo", "Vui lòng chọn một giao dịch để duyệt!");
             return;
         }
-
         if (userDAO.approveTransaction(selected)) {
-            loadTransactionData(); // Cập nhật lại bảng ngay lập tức
-            showInfoAlert("Thành công", "Đã duyệt giao dịch cho " + selected.getUsername());
-            refreshBalance(); // Cập nhật lại số dư nếu admin cũng có ví
+            loadTransactionData();
+            showInfoAlert("Thành công", "Đã duyệt giao dịch.");
+            refreshBalance();
         } else {
-            showAlert("Lỗi", "Không thể duyệt giao dịch. Vui lòng kiểm tra lại số dư người dùng!");
+            showAlert("Lỗi", "Không thể duyệt giao dịch (có thể do số dư không đủ)!");
         }
     }
 
@@ -123,86 +138,70 @@ public class DashboardController {
             showInfoAlert("Thông báo", "Vui lòng chọn một giao dịch để từ chối!");
             return;
         }
-
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-        confirm.setTitle("Xác nhận");
-        confirm.setHeaderText(null);
-        confirm.setContentText("Bạn có chắc chắn muốn từ chối giao dịch của " + selected.getUsername() + "?");
-
-        if (confirm.showAndWait().get() == ButtonType.OK) {
-            if (userDAO.rejectTransaction(selected.getId())) {
-                loadTransactionData();
-                System.out.println("Đã từ chối giao dịch ID: " + selected.getId());
-            } else {
-                showAlert("Lỗi", "Không thể cập nhật trạng thái giao dịch!");
-            }
+        if (userDAO.rejectTransaction(selected.getId())) {
+            loadTransactionData();
+            showInfoAlert("Thành công", "Đã từ chối giao dịch.");
         }
     }
 
-    // --- CÁC HÀM DÀNH CHO USER (BIDDER/SELLER) ---
+    private void loadTransactionData() {
+        if (tableTransactions != null) {
+            tableTransactions.setItems(userDAO.getPendingTransactions());
+            tableTransactions.refresh();
+        }
+    }
 
-    public void setUserData(String username, String role) { // Thêm String role vào đây
+    // --- QUẢN LÝ SESSION ---
+    public void setUserData(int userId, String username) {
+        this.userId = userId;
         this.currentUsername = username;
-        // Bạn có thể lưu role vào một biến private nếu cần dùng sau này
-        // this.currentRole = role;
-
         refreshBalance();
     }
 
     public void refreshBalance() {
-        if (lblBalance == null || currentUsername == null) return;
-        double balance = userDAO.getUserBalance(currentUsername);
-        lblBalance.setText(String.format("%,.0f VNĐ", balance));
+        if (lblBalance != null && currentUsername != null) {
+            double balance = userDAO.getUserBalance(currentUsername);
+            lblBalance.setText(String.format("%,.0f VNĐ", balance));
+        }
     }
 
-    @FXML
-    private void handleOpenDeposit() {
-        openTransactionWindow("DEPOSIT");
-    }
-
-    @FXML
-    private void handleOpenWithdraw() {
-        openTransactionWindow("WITHDRAW");
-    }
+    @FXML private void handleOpenDeposit() { openTransactionWindow("DEPOSIT"); }
+    @FXML private void handleOpenWithdraw() { openTransactionWindow("WITHDRAW"); }
 
     private void openTransactionWindow(String mode) {
         try {
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/auction/ui/deposit_view.fxml"));
             Parent root = loader.load();
-
             TransactionController controller = loader.getController();
-            controller.setUsername(currentUsername);
-            controller.setMode(mode);
-
+            if (controller != null) {
+                controller.setUsername(currentUsername);
+                controller.setMode(mode);
+            }
             Stage stage = new Stage();
-            stage.setTitle(mode.equals("DEPOSIT") ? "Nạp tiền" : "Rút tiền");
             stage.initModality(Modality.APPLICATION_MODAL);
             stage.setScene(new Scene(root));
             stage.showAndWait();
-
             refreshBalance();
         } catch (IOException e) {
             showAlert("Lỗi", "Không thể mở cửa sổ giao dịch!");
-            e.printStackTrace();
         }
     }
 
     @FXML
     private void handleLogout() {
         try {
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/auction/ui/login.fxml"));
-            Parent root = loader.load();
-            Stage stage = (Stage) (lblBalance != null ? lblBalance.getScene().getWindow() : tableUsers.getScene().getWindow());
+            Parent root = FXMLLoader.load(getClass().getResource("/com/auction/ui/login.fxml"));
+            Stage stage = (Stage) (lblBalance != null ? lblBalance.getScene().getWindow() :
+                    (tableUsers != null ? tableUsers.getScene().getWindow() : tableItems.getScene().getWindow()));
             stage.setScene(new Scene(root));
-            stage.show();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        } catch (IOException e) { e.printStackTrace(); }
     }
 
+    // --- TIỆN ÍCH THÔNG BÁO ---
     private void showAlert(String title, String content) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle(title);
+        alert.setHeaderText(null);
         alert.setContentText(content);
         alert.showAndWait();
     }

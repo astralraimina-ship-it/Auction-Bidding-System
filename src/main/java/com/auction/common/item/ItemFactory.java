@@ -1,49 +1,48 @@
 package com.auction.common.item;
 
 import java.util.Map;
+import java.sql.Timestamp;
 
 public class ItemFactory {
 
-    /**
-     * Phương thức tạo Item linh hoạt.
-     * @param category Loại hàng (ART, ELECTRONICS, VEHICLE, OTHER)
-     * @param commonData Chứa id, name, description, startPrice, binPrice, step
-     * @param specificData Chứa các thuộc tính riêng của từng loại
-     */
     public static Item createItem(String category, Map<String, Object> commonData, Map<String, Object> specificData) {
-
         // Trích xuất dữ liệu chung
-        int id = (int) commonData.get("id");
-        String name = (String) commonData.get("name");
-        String desc = (String) commonData.get("description");
-        double start = (double) commonData.get("startPrice");
-        double bin = (double) commonData.get("binPrice");
-        double step = (double) commonData.get("step");
+        int id = (int) commonData.getOrDefault("id", 0);
+        String name = (String) commonData.getOrDefault("name", "");
+        String desc = (String) commonData.getOrDefault("description", "");
+        double start = (double) commonData.getOrDefault("startPrice", 0.0);
+        double bin = (double) commonData.getOrDefault("binPrice", 0.0);
+        double step = (double) commonData.getOrDefault("step", 0.0);
+        Timestamp endTime = (Timestamp) commonData.get("endTime");
+        String status = (String) commonData.getOrDefault("status", "OPEN");
+
+        if (category == null) category = "OTHER";
 
         switch (category.toUpperCase()) {
             case "ART":
-                return new Art(id, name, desc, start, bin, step,
-                        (String) specificData.get("artist"),
-                        (String) specificData.get("medium"));
+                return new Art(id, name, desc, start, bin, step, endTime, status,
+                        (String) specificData.getOrDefault("artist", ""),
+                        (String) specificData.getOrDefault("medium", ""),
+                        (String) specificData.getOrDefault("state", ""));
 
             case "ELECTRONICS":
-                return new Electronics(id, name, desc, start, bin, step,
-                        (String) specificData.get("brand"),
-                        (String) specificData.get("warranty"),
-                        (String) specificData.get("state"));
+                return new Electronics(id, name, desc, start, bin, step, endTime, status,
+                        (String) specificData.getOrDefault("brand", ""),
+                        (String) specificData.getOrDefault("warranty", ""),
+                        (String) specificData.getOrDefault("state", ""));
 
             case "VEHICLE":
-                return new Vehicle(id, name, desc, start, bin, step,
-                        (String) specificData.get("brand"),
-                        (int) specificData.get("modelYear"),
-                        (String) specificData.get("engineType"),
-                        (String) specificData.get("state"),
-                        (int) specificData.get("age"),
-                        (double) specificData.get("mileage"));
+                return new Vehicle(id, name, desc, start, bin, step, endTime, status,
+                        (String) specificData.getOrDefault("brand", ""),
+                        (int) specificData.getOrDefault("modelYear", 0),
+                        (String) specificData.getOrDefault("engineType", ""),
+                        (String) specificData.getOrDefault("state", ""),
+                        (int) specificData.getOrDefault("age", 0),
+                        (double) specificData.getOrDefault("mileage", 0.0));
 
             case "OTHER":
             default:
-                return new Other(id, name, desc, start, bin, step);
+                return new Other(id, name, desc, start, bin, step, endTime, status);
         }
     }
 }

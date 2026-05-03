@@ -67,16 +67,43 @@ public class UserDAO {
     }
 
     // 3. Hàm đăng nhập - CHỈ CHO PHÉP TÀI KHOẢN ĐÃ 'APPROVED'
-    public String authenticate(String username, String password) {
-        String sql = "SELECT role FROM users WHERE username = ? AND password = ? AND status = 'APPROVED'";
+    public User authenticate(String username, String password) {
+        String sql = "SELECT * FROM users WHERE username = ? AND password = ? AND status = 'APPROVED'";
+
         try (Connection conn = DBContext.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
+
             ps.setString(1, username);
             ps.setString(2, password);
+
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return rs.getString("role");
+                if (rs.next()) {
+                    // 1. Lấy các thông tin cần thiết cho constructor
+                    int id = rs.getInt("id");
+                    String userVal = rs.getString("username");
+                    String passVal = rs.getString("password");
+                    String role = rs.getString("role");
+
+                    // 2. Khởi tạo Anonymous Inner Class
+                    // Truyền đủ 4 tham số vào constructor cha
+                    User user = new User(id, userVal, passVal, role) {
+                        @Override
+                        public String getUserDetails() {
+                            // Triển khai hàm abstract bắt buộc của class User
+                            return "User: " + getUsername() + " | Role: " + getRole();
+                        }
+                    };
+
+                    // 3. Đổ nốt các field không có trong constructor (Setter)
+                    user.setStatus(rs.getString("status"));
+                    user.setBalance(rs.getDouble("balance"));
+
+                    return user; // Trả về object User hợp lệ cho LoginController
+                }
             }
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         return null;
     }
 

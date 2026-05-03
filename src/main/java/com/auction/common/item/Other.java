@@ -1,27 +1,17 @@
 package com.auction.common.item;
 
-/**
- * Lớp đại diện cho các sản phẩm không thuộc danh mục đặc thù.
- * Kế thừa toàn bộ hệ thống Getter/Setter từ lớp cha Item.
- */
+import java.sql.Timestamp;
+
 public class Other extends Item {
     private static final long serialVersionUID = 1L;
 
-    public Other(int id, String name, String description, double startPrice, double binPrice, double step) {
-        // Mặc định category là "OTHER"
-        super(id, name, description, startPrice, binPrice, step, "OTHER");
+    public Other(int id, String name, String description, double startPrice, double binPrice, double step, Timestamp endTime, String status) {
+        super(id, name, description, startPrice, binPrice, step, "OTHER", endTime, status);
     }
-
-    /**
-     * Mặc dù Other hiện tại chỉ dùng các thuộc tính của lớp cha Item,
-     * nhưng nó vẫn kế thừa toàn bộ Getter/Setter từ Item:
-     * - getName() / setName()
-     * - getStartPrice() / setStartPrice()
-     * - ...
-     */
 
     @Override
     public String getItemDetails() {
-        return String.format("Sản phẩm khác: %s | Giá khởi điểm: %.2f", getName(), getStartPrice());
+        // Chỉ hiện giá và mô tả, không hiện lại Tên để tránh trùng lặp
+        return String.format("Giá khởi điểm: %,.0f VNĐ | Bước giá: %,.0f VNĐ", getStartPrice(), getStep());
     }
 }

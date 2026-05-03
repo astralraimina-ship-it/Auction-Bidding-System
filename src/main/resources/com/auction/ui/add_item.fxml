@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.Font?>
+
+<VBox spacing="15.0" style="-fx-background-color: #fcfaf5;" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.auction.ui.AddItemController">
+    <children>
+        <Label text="ĐĂNG SẢN PHẨM MỚI" textFill="#d35400">
+            <font>
+                <Font name="System Bold" size="20.0" />
+            </font>
+        </Label>
+
+        <Separator prefWidth="200.0" />
+
+        <GridPane hgap="10.0" vgap="10.0">
+            <columnConstraints>
+                <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="120.0" />
+                <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="250.0" />
+            </columnConstraints>
+            <rowConstraints>
+                <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                <RowConstraints minHeight="10.0" prefHeight="60.0" vgrow="SOMETIMES" />
+                <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" /> <!-- Thêm row cho thời gian -->
+            </rowConstraints>
+            <children>
+                <Label text="Loại hàng:" />
+                <ComboBox fx:id="comboCategory" prefWidth="250.0" GridPane.columnIndex="1" />
+
+                <Label text="Tên sản phẩm:" GridPane.rowIndex="1" />
+                <TextField fx:id="txtName" promptText="Nhập tên sản phẩm..." GridPane.columnIndex="1" GridPane.rowIndex="1" />
+
+                <Label text="Mô tả:" GridPane.rowIndex="2" />
+                <TextArea fx:id="txtDescription" prefHeight="50.0" promptText="Mô tả chi tiết..." GridPane.columnIndex="1" GridPane.rowIndex="2" />
+
+                <Label text="Giá khởi điểm:" GridPane.rowIndex="3" />
+                <TextField fx:id="txtStartPrice" promptText="VNĐ" GridPane.columnIndex="1" GridPane.rowIndex="3" />
+
+                <Label text="Giá bán đứt:" GridPane.rowIndex="4" />
+                <TextField fx:id="txtBinPrice" promptText="VNĐ" GridPane.columnIndex="1" GridPane.rowIndex="4" />
+
+                <Label text="Bước giá:" GridPane.rowIndex="5" />
+                <TextField fx:id="txtStep" promptText="Mức tăng tối thiểu" GridPane.columnIndex="1" GridPane.rowIndex="5" />
+
+                <!-- PHẦN MỚI THÊM: CHỌN THỜI GIAN -->
+                <Label text="Thời lượng đấu giá:" GridPane.rowIndex="6" />
+                <ComboBox fx:id="comboDuration" prefWidth="250.0" promptText="Chọn thời gian..." GridPane.columnIndex="1" GridPane.rowIndex="6" />
+            </children>
+        </GridPane>
+
+        <Separator prefWidth="200.0" />
+
+        <!-- Phần thông tin riêng (Specific Fields) -->
+        <VBox spacing="10.0" style="-fx-padding: 10; -fx-background-color: #eee;">
+            <children>
+                <Label text="Thông tin chi tiết (Tùy chọn loại hàng)" textFill="#7f8c8d">
+                    <font>
+                        <Font name="System Italic" size="12.0" />
+                    </font>
+                </Label>
+                <HBox alignment="CENTER_LEFT" spacing="10.0">
+                    <Label prefWidth="80.0" text="Thương hiệu:" />
+                    <TextField fx:id="txtBrand" HBox.hgrow="ALWAYS" />
+                    <Label text="Tình trạng:" />
+                    <TextField fx:id="txtState" prefWidth="100.0" />
+                </HBox>
+                <HBox alignment="CENTER_LEFT" spacing="10.0">
+                    <Label prefWidth="80.0" text="Nghệ sĩ:" />
+                    <TextField fx:id="txtArtist" HBox.hgrow="ALWAYS" />
+                    <Label text="Động cơ:" />
+                    <TextField fx:id="txtEngineType" prefWidth="100.0" />
+                </HBox>
+                <HBox alignment="CENTER_LEFT" spacing="10.0">
+                    <Label prefWidth="80.0" text="Odo (Mileage):" />
+                    <TextField fx:id="txtMileage" HBox.hgrow="ALWAYS" />
+                    <Label text="Bảo hành:" />
+                    <TextField fx:id="txtWarranty" prefWidth="100.0" />
+                </HBox>
+            </children>
+        </VBox>
+
+        <HBox alignment="CENTER_RIGHT" spacing="15.0">
+            <children>
+                <Button fx:id="btnCancel" onAction="#handleCancel" style="-fx-background-color: #95a5a6;" text="Hủy bỏ" textFill="WHITE" />
+                <Button onAction="#handleSave" prefWidth="100.0" style="-fx-background-color: #27ae60;" text="Lưu &amp; Đăng" textFill="WHITE" />
+            </children>
+            <padding>
+                <Insets top="10.0" />
+            </padding>
+        </HBox>
+    </children>
+    <padding>
+        <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
+    </padding>
+</VBox>

@@ -22,7 +22,6 @@
         </VBox>
         <Region HBox.hgrow="ALWAYS" />
 
-        <!-- Cụm bên phải: Doanh thu và Nút giao dịch -->
         <VBox alignment="CENTER_RIGHT" spacing="10">
             <VBox alignment="CENTER_RIGHT" style="-fx-background-color: white; -fx-padding: 10 20; -fx-background-radius: 10; -fx-border-color: #fad390; -fx-border-radius: 10;">
                 <Label text="Doanh thu tạm tính" style="-fx-font-size: 12px; -fx-text-fill: #95a5a6;" />
@@ -30,7 +29,6 @@
                        style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #e67e22;" />
             </VBox>
 
-            <!-- HBox chứa nút Nạp và Rút cho Seller -->
             <HBox spacing="10" alignment="CENTER_RIGHT">
                 <Button text="Nạp tiền" onAction="#handleOpenDeposit"
                         style="-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5; -fx-cursor: hand;"
@@ -44,6 +42,7 @@
 
     <TableView fx:id="tableItems" VBox.vgrow="ALWAYS" style="-fx-font-size: 14px;">
         <columns>
+            <!-- Các fx:id ở đây phải khớp chính xác với DashboardController -->
             <TableColumn fx:id="colName" text="Sản phẩm của tôi" prefWidth="200" />
             <TableColumn fx:id="colCategory" text="Loại" prefWidth="100" style="-fx-alignment: CENTER;" />
             <TableColumn fx:id="colDetails" text="Mô tả hàng hóa" prefWidth="350" />
@@ -55,7 +54,8 @@
     </TableView>
 
     <HBox alignment="CENTER_RIGHT" spacing="15">
-        <Button text="+ Đăng sản phẩm"
+        <!-- Đã thêm onAction="#onAddProduct" ở đây -->
+        <Button text="+ Đăng sản phẩm" onAction="#onAddProduct"
                 style="-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 25; -fx-background-radius: 5; -fx-cursor: hand;" />
         <Button text="Đăng xuất" onAction="#handleLogout"
                 style="-fx-background-color: #7f8c8d; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 25; -fx-background-radius: 5; -fx-cursor: hand;" />
