@@ -6,13 +6,13 @@ import java.sql.Timestamp;
 public class ItemFactory {
 
     public static Item createItem(String category, Map<String, Object> commonData, Map<String, Object> specificData) {
-        // Trích xuất dữ liệu chung
         int id = (int) commonData.getOrDefault("id", 0);
         String name = (String) commonData.getOrDefault("name", "");
         String desc = (String) commonData.getOrDefault("description", "");
         double start = (double) commonData.getOrDefault("startPrice", 0.0);
         double bin = (double) commonData.getOrDefault("binPrice", 0.0);
         double step = (double) commonData.getOrDefault("step", 0.0);
+        String sellerName = (String) commonData.getOrDefault("sellerName", "Unknown");
         Timestamp endTime = (Timestamp) commonData.get("endTime");
         String status = (String) commonData.getOrDefault("status", "OPEN");
 
@@ -20,19 +20,19 @@ public class ItemFactory {
 
         switch (category.toUpperCase()) {
             case "ART":
-                return new Art(id, name, desc, start, bin, step, endTime, status,
+                return new Art(id, name, desc, start, bin, step, sellerName, endTime, status,
                         (String) specificData.getOrDefault("artist", ""),
                         (String) specificData.getOrDefault("medium", ""),
                         (String) specificData.getOrDefault("state", ""));
 
             case "ELECTRONICS":
-                return new Electronics(id, name, desc, start, bin, step, endTime, status,
+                return new Electronics(id, name, desc, start, bin, step, sellerName, endTime, status,
                         (String) specificData.getOrDefault("brand", ""),
                         (String) specificData.getOrDefault("warranty", ""),
                         (String) specificData.getOrDefault("state", ""));
 
             case "VEHICLE":
-                return new Vehicle(id, name, desc, start, bin, step, endTime, status,
+                return new Vehicle(id, name, desc, start, bin, step, sellerName, endTime, status,
                         (String) specificData.getOrDefault("brand", ""),
                         (int) specificData.getOrDefault("modelYear", 0),
                         (String) specificData.getOrDefault("engineType", ""),
@@ -42,7 +42,7 @@ public class ItemFactory {
 
             case "OTHER":
             default:
-                return new Other(id, name, desc, start, bin, step, endTime, status);
+                return new Other(id, name, desc, start, bin, step, sellerName, endTime, status);
         }
     }
 }

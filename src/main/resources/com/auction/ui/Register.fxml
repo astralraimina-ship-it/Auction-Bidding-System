@@ -9,7 +9,7 @@
 <VBox spacing="15" alignment="CENTER" prefHeight="500" prefWidth="400"
       xmlns="http://javafx.com/javafx/8"
       xmlns:fx="http://javafx.com/fxml/1"
-      fx:controller="com.auction.ui.RegisterController"
+      fx:controller="com.auction.ui.auth.RegisterController"
       style="-fx-background-color: #ffffff;">
 
     <padding>

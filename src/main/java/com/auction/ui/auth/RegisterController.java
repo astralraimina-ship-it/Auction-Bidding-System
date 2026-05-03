@@ -1,4 +1,4 @@
-package com.auction.ui;
+package com.auction.ui.auth;
 
 import com.auction.database.UserDAO;
 import javafx.fxml.FXML;

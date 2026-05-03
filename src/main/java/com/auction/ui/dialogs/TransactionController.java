@@ -1,6 +1,6 @@
-package com.auction.ui;
+package com.auction.ui.dialogs;
 
-import com.auction.database.UserDAO;
+import com.auction.database.BidderDAO; // Thay đổi từ UserDAO sang BidderDAO
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -14,15 +14,15 @@ public class TransactionController {
     @FXML private Text txtTitle;
     @FXML private Button btnSubmit;
 
-    private UserDAO userDAO = new UserDAO();
+    // SỬA: Sử dụng BidderDAO để xử lý nạp/rút
+    private BidderDAO bidderDAO = new BidderDAO();
     private String currentUsername;
-    private String mode = "DEPOSIT"; // Mặc định là nạp
+    private String mode = "DEPOSIT";
 
     public void setUsername(String username) {
         this.currentUsername = username;
     }
 
-    // Hàm quan trọng để phân biệt Nạp hay Rút
     public void setMode(String mode) {
         this.mode = mode;
         if ("WITHDRAW".equals(mode)) {
@@ -55,20 +55,21 @@ public class TransactionController {
 
             boolean success = false;
             if ("WITHDRAW".equals(mode)) {
-                // Kiểm tra số dư trước khi rút
-                double balance = userDAO.getUserBalance(currentUsername);
+                // SỬA: bidderDAO vẫn gọi được getUserBalance vì nó kế thừa từ UserDAO
+                double balance = bidderDAO.getUserBalance(currentUsername);
                 if (amount > balance) {
                     lblStatus.setText("Số dư không đủ để rút!");
                     return;
                 }
-                // Gọi hàm rút tiền (tự tính phí 10% trong DAO)
-                success = userDAO.requestWithdraw(currentUsername, amount);
+                // SỬA: Gọi hàm từ bidderDAO
+                success = bidderDAO.requestWithdraw(currentUsername, amount);
             } else {
-                // Gọi hàm nạp tiền
-                success = userDAO.requestDeposit(currentUsername, amount);
+                // SỬA: Gọi hàm từ bidderDAO
+                success = bidderDAO.requestDeposit(currentUsername, amount);
             }
 
             if (success) {
+                // In ra console để debug (Long có thể xóa sau)
                 System.out.println("Yêu cầu " + mode + " thành công cho: " + currentUsername);
                 closeWindow();
             } else {
@@ -81,7 +82,9 @@ public class TransactionController {
     }
 
     private void closeWindow() {
-        Stage stage = (Stage) txtAmount.getScene().getWindow();
-        stage.close();
+        if (txtAmount != null && txtAmount.getScene() != null) {
+            Stage stage = (Stage) txtAmount.getScene().getWindow();
+            stage.close();
+        }
     }
 }

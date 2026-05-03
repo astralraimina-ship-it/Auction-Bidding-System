@@ -1,4 +1,4 @@
-package com.auction.ui;
+package com.auction.ui.dialogs;
 
 import com.auction.common.item.Item;
 import com.auction.common.item.ItemFactory;
@@ -16,14 +16,12 @@ public class AddItemController {
     @FXML private TextField txtName, txtStartPrice, txtBinPrice, txtStep;
     @FXML private TextArea txtDescription;
     @FXML private ComboBox<String> comboCategory;
-    @FXML private ComboBox<String> comboDuration; // MỚI THÊM
+    @FXML private ComboBox<String> comboDuration;
 
     // --- Các trường dữ liệu riêng ---
     @FXML private TextField txtBrand, txtState, txtEngineType, txtMileage, txtArtist, txtWarranty;
 
-    @FXML private Button btnCancel;
-
-    private int currentUserId;
+    private int currentUserId; // Đây chính là sellerId
 
     @FXML
     public void initialize() {
@@ -35,18 +33,13 @@ public class AddItemController {
         comboDuration.getItems().addAll("1 giờ", "5 giờ", "12 giờ", "24 giờ", "3 ngày", "7 ngày");
         comboDuration.setValue("1 giờ");
 
-        // 3. Lắng nghe thay đổi loại hàng để ẩn/hiện các ô nhập liệu chi tiết
-        comboCategory.valueProperty().addListener((observable, oldValue, newValue) -> {
-            updateFieldState(newValue);
-        });
-
-        // Chạy lần đầu để setup trạng thái mặc định cho "OTHER"
+        // 3. Lắng nghe thay đổi loại hàng để ẩn/hiện trường chi tiết
+        comboCategory.valueProperty().addListener((obs, oldVal, newVal) -> updateFieldState(newVal));
         updateFieldState("OTHER");
     }
 
-    // Hàm logic ẩn/hiện/disable các trường thông tin chi tiết
     private void updateFieldState(String category) {
-        // Reset: Disable tất cả trước
+        // Vô hiệu hóa tất cả trước khi mở lại theo loại
         txtBrand.setDisable(true);
         txtState.setDisable(true);
         txtEngineType.setDisable(true);
@@ -69,6 +62,7 @@ public class AddItemController {
         }
     }
 
+    // Quan trọng: Phải gọi hàm này từ SellerController khi mở Dialog
     public void setUserId(int userId) {
         this.currentUserId = userId;
     }
@@ -76,13 +70,13 @@ public class AddItemController {
     @FXML
     private void handleSave() {
         try {
-            // Kiểm tra nhập liệu cơ bản
-            if (txtName.getText().isEmpty() || txtStartPrice.getText().isEmpty()) {
-                showAlert("Thông báo", "Vui lòng điền tên sản phẩm và giá khởi điểm!");
+            // Validate dữ liệu bắt buộc
+            if (txtName.getText().trim().isEmpty() || txtStartPrice.getText().trim().isEmpty()) {
+                showAlert("Thông báo", "Tên sản phẩm và Giá khởi điểm không được để trống!");
                 return;
             }
 
-            // 1. Xử lý thời gian kết thúc
+            // 1. Xử lý thời gian kết thúc (endTime)
             String selectedDuration = comboDuration.getValue();
             int hours = 0;
             if (selectedDuration.contains("giờ")) {
@@ -90,23 +84,21 @@ public class AddItemController {
             } else if (selectedDuration.contains("ngày")) {
                 hours = Integer.parseInt(selectedDuration.replace(" ngày", "")) * 24;
             }
+            Timestamp endTime = Timestamp.valueOf(LocalDateTime.now().plusHours(hours));
 
-            LocalDateTime endLDT = LocalDateTime.now().plusHours(hours);
-            Timestamp endTime = Timestamp.valueOf(endLDT);
-
-            // 2. Thu thập dữ liệu chung
+            // 2. Thu thập dữ liệu chung (Map key phải khớp với ItemDAO)
             Map<String, Object> commonData = new HashMap<>();
             commonData.put("id", 0);
             commonData.put("name", txtName.getText().trim());
+            commonData.put("category", comboCategory.getValue());
             commonData.put("description", txtDescription.getText().trim());
-            commonData.put("startPrice", Double.parseDouble(txtStartPrice.getText()));
-            commonData.put("binPrice", Double.parseDouble(txtBinPrice.getText()));
-            commonData.put("step", Double.parseDouble(txtStep.getText()));
-            commonData.put("endTime", endTime); // LƯU THỜI GIAN
-            commonData.put("status", "OPEN");   // TRẠNG THÁI MẶC ĐỊNH
+            commonData.put("startPrice", parseDoubleSafe(txtStartPrice)); // Khớp key startPrice
+            commonData.put("binPrice", parseDoubleSafe(txtBinPrice));     // Khớp key binPrice
+            commonData.put("step", parseDoubleSafe(txtStep));
+            commonData.put("endTime", endTime);                           // Khớp key endTime
+            commonData.put("status", "OPEN");
 
             // 3. Thu thập dữ liệu riêng
-            String category = comboCategory.getValue();
             Map<String, Object> specificData = new HashMap<>();
             specificData.put("brand", getSafeText(txtBrand));
             specificData.put("state", getSafeText(txtState));
@@ -115,21 +107,26 @@ public class AddItemController {
             specificData.put("warranty", getSafeText(txtWarranty));
             specificData.put("mileage", parseDoubleSafe(txtMileage));
 
-            // 4. Tạo Object và lưu
-            Item newItem = ItemFactory.createItem(category, commonData, specificData);
+            // 4. Tạo Object qua Factory và lưu vào DB
+            Item newItem = ItemFactory.createItem(comboCategory.getValue(), commonData, specificData);
             ItemDAO dao = new ItemDAO();
-            if (dao.addItem(newItem, currentUserId)) {
-                showAlert("Thành công", "Đã đăng sản phẩm! Hết hạn lúc: " + endLDT.toString());
-                closeWindow();
-            } else {
-                showAlert("Lỗi", "Không thể lưu sản phẩm vào Database!");
+
+            // Kiểm tra sellerId trước khi gửi
+            if (currentUserId <= 0) {
+                showAlert("Lỗi hệ thống", "Không tìm thấy ID người bán. Vui lòng đăng nhập lại!");
+                return;
             }
 
-        } catch (NumberFormatException e) {
-            showAlert("Lỗi nhập liệu", "Giá tiền, bước giá phải là số!");
+            if (dao.addItem(newItem, currentUserId)) {
+                showAlert("Thành công", "Sản phẩm đã được đăng lên hệ thống!");
+                closeWindow();
+            } else {
+                showAlert("Lỗi", "Database từ chối lưu sản phẩm. Vui lòng kiểm tra lại kết nối!");
+            }
+
         } catch (Exception e) {
             e.printStackTrace();
-            showAlert("Lỗi", "Lỗi: " + e.getMessage());
+            showAlert("Lỗi", "Đã xảy ra lỗi: " + e.getMessage());
         }
     }
 
@@ -139,8 +136,9 @@ public class AddItemController {
     }
 
     private void closeWindow() {
-        Stage stage = (Stage) txtName.getScene().getWindow();
-        stage.close();
+        if (txtName.getScene() != null) {
+            ((Stage) txtName.getScene().getWindow()).close();
+        }
     }
 
     private String getSafeText(TextField field) {
@@ -149,8 +147,8 @@ public class AddItemController {
 
     private double parseDoubleSafe(TextField field) {
         try {
-            if (field == null || field.isDisabled() || field.getText().isEmpty()) return 0.0;
-            return Double.parseDouble(field.getText());
+            String text = field.getText().trim();
+            return text.isEmpty() ? 0.0 : Double.parseDouble(text);
         } catch (NumberFormatException e) {
             return 0.0;
         }

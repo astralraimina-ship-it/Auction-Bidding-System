@@ -9,8 +9,8 @@ public class Art extends Item {
     private String state;
 
     public Art(int id, String name, String description, double startPrice, double binPrice, double step,
-               Timestamp endTime, String status, String artist, String medium, String state) {
-        super(id, name, description, startPrice, binPrice, step, "ART", endTime, status);
+               String sellerName, Timestamp endTime, String status, String artist, String medium, String state) {
+        super(id, name, description, startPrice, binPrice, step, sellerName, "ART", endTime, status);
         this.artist = artist;
         this.medium = medium;
         this.state = state;
@@ -22,9 +22,6 @@ public class Art extends Item {
     }
 
     public String getArtist() { return artist; }
-    public void setArtist(String artist) { this.artist = artist; }
     public String getMedium() { return medium; }
-    public void setMedium(String medium) { this.medium = medium; }
     public String getState() { return state; }
-    public void setState(String state) { this.state = state; }
 }

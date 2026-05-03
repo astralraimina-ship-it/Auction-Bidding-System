@@ -5,7 +5,7 @@
 <?import javafx.scene.text.*?>
 
 <VBox alignment="CENTER" spacing="20.0" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
-      fx:controller="com.auction.ui.TransactionController" prefWidth="350.0" prefHeight="300.0"
+      fx:controller="com.auction.ui.dialogs.TransactionController" prefWidth="350.0" prefHeight="300.0"
       style="-fx-padding: 30; -fx-background-color: white; -fx-background-radius: 10;">
 
     <!-- Tiêu đề thay đổi linh hoạt -->

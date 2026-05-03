@@ -5,7 +5,7 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.text.Font?>
 
-<VBox spacing="15.0" style="-fx-background-color: #fcfaf5;" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.auction.ui.AddItemController">
+<VBox spacing="15.0" style="-fx-background-color: #fcfaf5;" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.auction.ui.dialogs.AddItemController">
     <children>
         <Label text="ĐĂNG SẢN PHẨM MỚI" textFill="#d35400">
             <font>

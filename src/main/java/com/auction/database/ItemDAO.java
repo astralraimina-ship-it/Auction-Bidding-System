@@ -9,21 +9,56 @@ import java.util.Map;
 
 public class ItemDAO {
 
-    // 1. Hàm lấy sản phẩm - Chỉ lấy những sản phẩm đang OPEN và còn thời gian
-    public ObservableList<Item> getAllItems() {
+    // 1. Lấy tất cả sản phẩm đang OPEN (Cho Bidder)
+    public ObservableList<Item> getAllOpenItems() {
         ObservableList<Item> list = FXCollections.observableArrayList();
-        // Sửa SQL để lọc sản phẩm "biến mất" khi hết hạn hoặc đã bán
-        String sql = "SELECT * FROM items WHERE status = 'OPEN' AND end_time > NOW()";
+        String sql = "SELECT i.*, u.username AS seller_name FROM items i " +
+                "JOIN users u ON i.seller_id = u.id " +
+                "WHERE i.status = 'OPEN' AND i.end_time > NOW()";
 
         try (Connection conn = DBContext.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
-
             while (rs.next()) {
-                try {
+                list.add(mapResultSetToItem(rs));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    // 2. Lấy sản phẩm cho Admin (Tất cả trạng thái)
+    public ObservableList<Item> getAllItemsForAdmin() {
+        ObservableList<Item> list = FXCollections.observableArrayList();
+        String sql = "SELECT i.*, u.username AS seller_name FROM items i " +
+                "JOIN users u ON i.seller_id = u.id";
+
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                list.add(mapResultSetToItem(rs));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    // 3. Lấy sản phẩm theo Seller ID
+    public ObservableList<Item> getItemsBySeller(int sellerId) {
+        ObservableList<Item> list = FXCollections.observableArrayList();
+        String sql = "SELECT i.*, u.username AS seller_name FROM items i " +
+                "JOIN users u ON i.seller_id = u.id " +
+                "WHERE i.seller_id = ? ORDER BY i.id DESC";
+
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, sellerId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
                     list.add(mapResultSetToItem(rs));
-                } catch (Exception e) {
-                    System.err.println("Lỗi tạo Item tại ID: " + rs.getInt("id") + " - " + e.getMessage());
                 }
             }
         } catch (Exception e) {
@@ -32,50 +67,35 @@ public class ItemDAO {
         return list;
     }
 
-    // 2. Hàm thêm sản phẩm mới (Đã cập nhật end_time và status)
+    // 4. Thêm sản phẩm mới
     public boolean addItem(Item item, int sellerId) {
-        // SQL mới: 18 cột (6 chung + 2 mới + 9 riêng + 1 seller_id)
         String sql = "INSERT INTO items (name, description, startPrice, binPrice, step, category, " +
-                "end_time, status, " + // 2 cột mới (7, 8)
-                "brand, warranty, state, artist, medium, modelYear, engineType, age, mileage, " + // (9-17)
-                "seller_id) " + // (18)
+                "end_time, status, brand, warranty, state, artist, medium, modelYear, engineType, age, mileage, seller_id) " +
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = DBContext.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-
-            // Dữ liệu chung (1-6)
             ps.setString(1, item.getName());
             ps.setString(2, item.getDescription());
             ps.setDouble(3, item.getStartPrice());
             ps.setDouble(4, item.getBinPrice());
             ps.setDouble(5, item.getStep());
             ps.setString(6, item.getCategory());
-
-            // 2 Cột mới (7-8)
             ps.setTimestamp(7, item.getEndTime());
-            ps.setString(8, item.getStatus()); // Mặc định là "OPEN" từ Controller truyền sang
-
-            // Xử lý dữ liệu riêng (Bắt đầu từ index 9 đến 17)
+            ps.setString(8, item.getStatus());
             setSpecificData(ps, item);
-
-            // Cột 18: seller_id
             ps.setInt(18, sellerId);
-
             return ps.executeUpdate() > 0;
         } catch (Exception e) {
-            System.err.println("Lỗi khi INSERT Item: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
     }
 
-    private void setSpecificData(PreparedStatement ps, Item item) throws SQLException {
-        // Reset 9 cột riêng (từ index 9 đến 17 theo SQL mới)
-        for (int i = 9; i <= 17; i++) {
-            ps.setNull(i, Types.NULL);
-        }
+    // --- CÁC HÀM TRỢ GIÚP (HELPER) ---
 
+    private void setSpecificData(PreparedStatement ps, Item item) throws SQLException {
+        for (int i = 9; i <= 17; i++) ps.setNull(i, Types.NULL);
         if (item instanceof Vehicle v) {
             ps.setString(9, v.getBrand());
             ps.setString(11, v.getState());
@@ -86,7 +106,7 @@ public class ItemDAO {
         } else if (item instanceof Art a) {
             ps.setString(12, a.getArtist());
             ps.setString(13, a.getMedium());
-            ps.setString(11, a.getState()); // Tranh cũng có tình trạng
+            ps.setString(11, a.getState());
         } else if (item instanceof Electronics e) {
             ps.setString(9, e.getBrand());
             ps.setString(10, e.getWarranty());
@@ -100,13 +120,15 @@ public class ItemDAO {
         common.put("id", rs.getInt("id"));
         common.put("name", rs.getString("name"));
         common.put("description", rs.getString("description"));
+
+        // Lưu ý: Dùng đúng tên cột startPrice/binPrice như trong hàm addItem
         common.put("startPrice", rs.getDouble("startPrice"));
         common.put("binPrice", rs.getDouble("binPrice"));
-        common.put("step", rs.getDouble("step"));
 
-        // Đọc thêm 2 cột mới để Factory khởi tạo Object hoàn chỉnh
+        common.put("step", rs.getDouble("step"));
         common.put("endTime", rs.getTimestamp("end_time"));
         common.put("status", rs.getString("status"));
+        common.put("sellerName", rs.getString("seller_name"));
 
         Map<String, Object> specific = new HashMap<>();
         specific.put("brand", rs.getString("brand"));
