@@ -44,7 +44,7 @@ public class NavigationService {
 
                 case "BIDDER":
                     BidderController bidderCtrl = loader.getController();
-                    bidderCtrl.setBidderInfo(username);
+                    bidderCtrl.setBidderInfo(userId,username);
                     break;
 
                 case "SELLER":

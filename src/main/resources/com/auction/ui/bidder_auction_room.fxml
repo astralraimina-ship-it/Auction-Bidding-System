@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+
+<AnchorPane prefHeight="550.0" prefWidth="850.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.auction.ui.tab.BidderAuctionRoomController">
+    <children>
+        <VBox layoutX="25.0" layoutY="25.0" spacing="20.0" AnchorPane.bottomAnchor="25.0" AnchorPane.leftAnchor="25.0" AnchorPane.rightAnchor="25.0" AnchorPane.topAnchor="25.0">
+            <children>
+                <Label fx:id="lblProductName" text="Sản phẩm đang đấu giá" textFill="#2c3e50">
+                    <font><Font name="System Bold" size="26.0" /></font>
+                </Label>
+
+                <HBox spacing="25.0" VBox.vgrow="ALWAYS">
+                    <children>
+                        <!-- Cột trái: Thông tin & Đặt giá -->
+                        <VBox prefWidth="400.0" spacing="15.0" style="-fx-background-color: white; -fx-padding: 20; -fx-background-radius: 10; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 0);">
+                            <children>
+                                <Label fx:id="lblCurrentPrice" text="GIÁ HIỆN TẠI: 0 VNĐ" textFill="#e74c3c">
+                                    <font><Font name="System Bold" size="20.0" /></font>
+                                </Label>
+                                <Label fx:id="lblStep" text="Bước giá tối thiểu: 0 VNĐ" />
+                                <Label fx:id="lblBinPrice" text="Giá mua đứt: 0 VNĐ" textFill="#2980b9" />
+                                <Separator />
+                                <Label text="Nhập giá của bạn:" />
+                                <TextField fx:id="txtBidInput" prefHeight="45.0" promptText="0.0" />
+                                <Button maxWidth="Infinity" onAction="#handlePlaceBid" prefHeight="50.0" style="-fx-background-color: #27ae60;" text="ĐẶT GIÁ NGAY" textFill="white">
+                                    <font><Font name="System Bold" size="16.0" /></font>
+                                </Button>
+                                <Button fx:id="btnRefresh" maxWidth="Infinity" onAction="#manualRefresh" text="🔄 Làm mới dữ liệu" />
+                            </children>
+                        </VBox>
+
+                        <!-- Cột phải: Log hoạt động -->
+                        <VBox HBox.hgrow="ALWAYS" spacing="10.0">
+                            <children>
+                                <Label text="Nhật ký phòng đấu giá:">
+                                    <font><Font name="System Italic" size="13.0" /></font>
+                                </Label>
+                                <TextArea fx:id="txtAreaLog" editable="false" VBox.vgrow="ALWAYS" style="-fx-font-family: 'Consolas'; -fx-font-size: 12px;" />
+                            </children>
+                        </VBox>
+                    </children>
+                </HBox>
+            </children>
+        </VBox>
+    </children>
+</AnchorPane>

@@ -9,12 +9,15 @@ import java.util.Map;
 
 public class ItemDAO {
 
-    // 1. Lấy tất cả sản phẩm đang OPEN (Cho Bidder)
+    /**
+     * 1. Lấy tất cả sản phẩm đang OPEN và chưa hết hạn (Cho màn hình chính của Bidder)
+     */
     public ObservableList<Item> getAllOpenItems() {
         ObservableList<Item> list = FXCollections.observableArrayList();
         String sql = "SELECT i.*, u.username AS seller_name FROM items i " +
                 "JOIN users u ON i.seller_id = u.id " +
-                "WHERE i.status = 'OPEN' AND i.end_time > NOW()";
+                "WHERE i.status = 'OPEN' AND i.end_time > NOW() " +
+                "ORDER BY i.end_time ASC";
 
         try (Connection conn = DBContext.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql);
@@ -28,11 +31,55 @@ public class ItemDAO {
         return list;
     }
 
-    // 2. Lấy sản phẩm cho Admin (Tất cả trạng thái)
+    /**
+     * 2. Lấy danh sách sản phẩm mà người dùng đã thắng (Để thanh toán)
+     */
+    public ObservableList<Item> getWonItems(int userId) {
+        ObservableList<Item> list = FXCollections.observableArrayList();
+        // Lấy những item có status CLOSED và winner_id là chính mình
+        String sql = "SELECT i.*, u.username AS seller_name FROM items i " +
+                "JOIN users u ON i.seller_id = u.id " +
+                "WHERE i.status = 'CLOSED' AND i.winner_id = ? " +
+                "ORDER BY i.end_time DESC";
+
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(mapResultSetToItem(rs));
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    /**
+     * 3. Đóng phiên đấu giá và cập nhật người thắng (Dùng khi mua đứt hoặc hết giờ)
+     */
+    public boolean closeAuction(int itemId, int winnerId) {
+        // Cập nhật trạng thái thành CLOSED, set winner_id và thời gian kết thúc
+        String sql = "UPDATE items SET status = 'CLOSED', winner_id = ?, end_time = NOW() WHERE id = ?";
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, winnerId);
+            ps.setInt(2, itemId);
+            return ps.executeUpdate() > 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * 4. Lấy tất cả sản phẩm cho Admin
+     */
     public ObservableList<Item> getAllItemsForAdmin() {
         ObservableList<Item> list = FXCollections.observableArrayList();
         String sql = "SELECT i.*, u.username AS seller_name FROM items i " +
-                "JOIN users u ON i.seller_id = u.id";
+                "JOIN users u ON i.seller_id = u.id ORDER BY i.id DESC";
 
         try (Connection conn = DBContext.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql);
@@ -46,7 +93,9 @@ public class ItemDAO {
         return list;
     }
 
-    // 3. Lấy sản phẩm theo Seller ID
+    /**
+     * 5. Lấy sản phẩm theo Seller ID
+     */
     public ObservableList<Item> getItemsBySeller(int sellerId) {
         ObservableList<Item> list = FXCollections.observableArrayList();
         String sql = "SELECT i.*, u.username AS seller_name FROM items i " +
@@ -67,7 +116,9 @@ public class ItemDAO {
         return list;
     }
 
-    // 4. Thêm sản phẩm mới
+    /**
+     * 6. Thêm sản phẩm mới
+     */
     public boolean addItem(Item item, int sellerId) {
         String sql = "INSERT INTO items (name, description, startPrice, binPrice, step, category, " +
                 "end_time, status, brand, warranty, state, artist, medium, modelYear, engineType, age, mileage, seller_id) " +
@@ -120,11 +171,8 @@ public class ItemDAO {
         common.put("id", rs.getInt("id"));
         common.put("name", rs.getString("name"));
         common.put("description", rs.getString("description"));
-
-        // Lưu ý: Dùng đúng tên cột startPrice/binPrice như trong hàm addItem
         common.put("startPrice", rs.getDouble("startPrice"));
         common.put("binPrice", rs.getDouble("binPrice"));
-
         common.put("step", rs.getDouble("step"));
         common.put("endTime", rs.getTimestamp("end_time"));
         common.put("status", rs.getString("status"));
