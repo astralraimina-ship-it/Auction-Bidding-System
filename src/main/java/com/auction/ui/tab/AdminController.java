@@ -6,6 +6,8 @@ import com.auction.database.AdminDAO;
 import com.auction.database.ItemDAO;
 import com.auction.transaction.Transaction;
 import com.auction.util.NavigationService;
+import javafx.application.Platform;
+import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
@@ -26,13 +28,11 @@ public class AdminController {
 
     // --- Bảng Sản phẩm ---
     @FXML private TableView<Item> tableItems;
-    @FXML private TableColumn<Item, String> colName;
-    @FXML private TableColumn<Item, String> colCategory;
-    @FXML private TableColumn<Item, String> colSeller;
-    @FXML private TableColumn<Item, String> colDetails;
-    @FXML private TableColumn<Item, Double> colStartPrice;
-    @FXML private TableColumn<Item, Double> colBinPrice;
-    @FXML private TableColumn<Item, String> colTimeLeft; // Cột mới thêm
+    @FXML private TableColumn<Item, String> colName, colCategory, colSeller, colDetails, colTimeLeft;
+    @FXML private TableColumn<Item, Double> colStartPrice, colBinPrice;
+
+    // Thêm nút Button để tiện disable khi đang load
+    @FXML private Button btnRefresh;
 
     private final AdminDAO adminDAO = new AdminDAO();
     private final ItemDAO itemDAO = new ItemDAO();
@@ -40,7 +40,41 @@ public class AdminController {
     @FXML
     public void initialize() {
         setupColumns();
-        refreshData();
+        refreshData(); // Tự động load lần đầu
+    }
+
+    // Hàm Refresh dùng chung cho cả 3 bảng, chạy ngầm để không treo App
+    @FXML
+    public void refreshData() {
+        System.out.println(">>> ĐANG LẤY DỮ LIỆU MỚI TỪ AIVEN CLOUD...");
+        if (btnRefresh != null) btnRefresh.setDisable(true); // Khóa nút tránh bấm liên tục
+
+        // Chạy luồng phụ để kết nối Database
+        new Thread(() -> {
+            try {
+                // Lấy dữ liệu từ Cloud
+                ObservableList<User> userList = adminDAO.getAllUsers();
+                ObservableList<Transaction> transList = adminDAO.getPendingTransactions();
+                ObservableList<Item> itemList = itemDAO.getAllItemsForAdmin();
+
+                // Đẩy dữ liệu về luồng UI sau khi lấy xong
+                Platform.runLater(() -> {
+                    if (tableUsers != null) tableUsers.setItems(userList);
+                    if (tableTransactions != null) tableTransactions.setItems(transList);
+                    if (tableItems != null) {
+                        tableItems.setItems(itemList);
+                        tableItems.refresh();
+                    }
+                    if (btnRefresh != null) btnRefresh.setDisable(false);
+                    System.out.println(">>> ĐÃ CẬP NHẬT TẤT CẢ CÁC BẢNG!");
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    if (btnRefresh != null) btnRefresh.setDisable(false);
+                    showAlert("Lỗi Cloud", "Không thể lấy dữ liệu: " + e.getMessage());
+                });
+            }
+        }).start();
     }
 
     private void setupColumns() {
@@ -61,11 +95,9 @@ public class AdminController {
         if (colCategory != null) colCategory.setCellValueFactory(new PropertyValueFactory<>("category"));
         if (colSeller != null) colSeller.setCellValueFactory(new PropertyValueFactory<>("sellerName"));
         if (colDetails != null) colDetails.setCellValueFactory(new PropertyValueFactory<>("description"));
-
         if (colStartPrice != null) setupItemCurrencyColumn(colStartPrice, "startPrice");
         if (colBinPrice != null) setupItemCurrencyColumn(colBinPrice, "binPrice");
 
-        // Xử lý cột Thời gian còn lại / Trạng thái kết thúc
         if (colTimeLeft != null) {
             colTimeLeft.setCellFactory(tc -> new TableCell<Item, String>() {
                 @Override
@@ -77,15 +109,14 @@ public class AdminController {
                     } else {
                         Item currentItem = getTableRow().getItem();
                         long diff = currentItem.getEndTime().getTime() - System.currentTimeMillis();
-
                         if (diff <= 0 || "CLOSED".equals(currentItem.getStatus())) {
                             setText("Đã kết thúc");
-                            setStyle("-fx-text-fill: #e74c3c; -fx-font-weight: bold; -fx-alignment: CENTER;");
+                            setStyle("-fx-text-fill: #e74c3c; -fx-font-weight: bold;");
                         } else {
                             long hours = diff / 3600000;
                             long mins = (diff % 3600000) / 60000;
                             setText(String.format("%02dh %02dm còn lại", hours, mins));
-                            setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold; -fx-alignment: CENTER;");
+                            setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold;");
                         }
                     }
                 }
@@ -93,53 +124,38 @@ public class AdminController {
         }
     }
 
-    private void setupItemCurrencyColumn(TableColumn<Item, Double> column, String property) {
-        column.setCellValueFactory(new PropertyValueFactory<>(property));
-        column.setCellFactory(tc -> new TableCell<Item, Double>() {
-            @Override
-            protected void updateItem(Double value, boolean empty) {
-                super.updateItem(value, empty);
-                if (empty || value == null) {
-                    setText(null);
-                } else {
-                    setText(String.format("%,.0f VNĐ", value));
-                    setStyle("-fx-alignment: CENTER-RIGHT; -fx-padding: 0 10 0 0;");
-                }
-            }
-        });
-    }
-
-    private void setupUserCurrencyColumn(TableColumn<User, Double> column, String property) {
-        column.setCellValueFactory(new PropertyValueFactory<>(property));
-        column.setCellFactory(tc -> new TableCell<User, Double>() {
+    // Các hàm setup Currency giữ nguyên
+    private void setupItemCurrencyColumn(TableColumn<Item, Double> c, String p) {
+        c.setCellValueFactory(new PropertyValueFactory<>(p));
+        c.setCellFactory(tc -> new TableCell<Item, Double>() {
             @Override protected void updateItem(Double v, boolean e) {
                 super.updateItem(v, e);
                 setText((e || v == null) ? null : String.format("%,.0f VNĐ", v));
-                setStyle("-fx-alignment: CENTER-RIGHT; -fx-padding: 0 10 0 0;");
+                setStyle("-fx-alignment: CENTER-RIGHT;");
             }
         });
     }
 
-    private void setupTransCurrencyColumn(TableColumn<Transaction, Double> column, String property) {
-        column.setCellValueFactory(new PropertyValueFactory<>(property));
-        column.setCellFactory(tc -> new TableCell<Transaction, Double>() {
+    private void setupUserCurrencyColumn(TableColumn<User, Double> c, String p) {
+        c.setCellValueFactory(new PropertyValueFactory<>(p));
+        c.setCellFactory(tc -> new TableCell<User, Double>() {
             @Override protected void updateItem(Double v, boolean e) {
                 super.updateItem(v, e);
                 setText((e || v == null) ? null : String.format("%,.0f VNĐ", v));
-                setStyle("-fx-alignment: CENTER-RIGHT; -fx-padding: 0 10 0 0;");
+                setStyle("-fx-alignment: CENTER-RIGHT;");
             }
         });
     }
 
-    @FXML
-    public void refreshData() {
-        if (tableUsers != null) tableUsers.setItems(adminDAO.getAllUsers());
-        if (tableTransactions != null) tableTransactions.setItems(adminDAO.getPendingTransactions());
-        if (tableItems != null) {
-            // Sử dụng hàm getAllItemsForAdmin để lấy cả đồ quá hạn
-            tableItems.setItems(itemDAO.getAllItemsForAdmin());
-            tableItems.refresh();
-        }
+    private void setupTransCurrencyColumn(TableColumn<Transaction, Double> c, String p) {
+        c.setCellValueFactory(new PropertyValueFactory<>(p));
+        c.setCellFactory(tc -> new TableCell<Transaction, Double>() {
+            @Override protected void updateItem(Double v, boolean e) {
+                super.updateItem(v, e);
+                setText((e || v == null) ? null : String.format("%,.0f VNĐ", v));
+                setStyle("-fx-alignment: CENTER-RIGHT;");
+            }
+        });
     }
 
     @FXML private void handleApproveTrans() {
@@ -150,37 +166,22 @@ public class AdminController {
     @FXML private void handleRejectTrans() { refreshData(); }
 
     @FXML private void handleLogout() {
-        Stage stage = (Stage) lblBalance.getScene().getWindow();
+        Stage stage = (Stage) tableUsers.getScene().getWindow();
         NavigationService.navigate(stage, "/com/auction/ui/login.fxml", "UET Auction - Đăng nhập");
     }
-    @FXML
-    private void handleApproveUser() {
+
+    @FXML private void handleApproveUser() {
         User selected = tableUsers.getSelectionModel().getSelectedItem();
-        if (selected != null) {
-            if ("PENDING".equals(selected.getStatus())) {
-                // Gọi DAO để update status thành APPROVED trong database
-                if (adminDAO.updateUserStatus(selected.getUsername(), "APPROVED")) {
-                    refreshData(); // Load lại bảng để thấy thay đổi
-                }
-            } else {
-                showAlert("Thông báo", "Người dùng này đã được duyệt hoặc đang ở trạng thái khác.");
-            }
-        } else {
-            showAlert("Lỗi", "Vui lòng chọn một người dùng từ danh sách!");
+        if (selected != null && "PENDING".equals(selected.getStatus())) {
+            if (adminDAO.updateUserStatus(selected.getUsername(), "APPROVED")) refreshData();
         }
     }
 
-    @FXML
-    private void handleBlockUser() {
+    @FXML private void handleBlockUser() {
         User selected = tableUsers.getSelectionModel().getSelectedItem();
-        if (selected != null) {
-            if (adminDAO.updateUserStatus(selected.getUsername(), "BLOCKED")) {
-                refreshData();
-            }
-        }
+        if (selected != null && adminDAO.updateUserStatus(selected.getUsername(), "BLOCKED")) refreshData();
     }
 
-    // Hàm hỗ trợ hiện thông báo nhanh
     private void showAlert(String title, String content) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle(title);

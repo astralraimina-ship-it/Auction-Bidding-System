@@ -34,7 +34,8 @@
                 <HBox alignment="CENTER_LEFT">
                     <Label text="Yêu cầu giao dịch đang chờ xử lý" style="-fx-font-size: 18px; -fx-font-weight: bold;"/>
                     <Region HBox.hgrow="ALWAYS" />
-                    <Button text="Làm mới bảng" onAction="#refreshData"
+                    <!-- Nút Refresh cho Tab 1 -->
+                    <Button fx:id="btnRefresh1" text="Làm mới bảng" onAction="#refreshData"
                             style="-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;"/>
                 </HBox>
 
@@ -62,7 +63,14 @@
         <!-- TAB 2: QUẢN LÝ NGƯỜI DÙNG -->
         <Tab text="Quản lý người dùng">
             <VBox spacing="15" style="-fx-padding: 15;">
-                <Label text="Danh sách tài khoản hệ thống" style="-fx-font-size: 18px; -fx-font-weight: bold;"/>
+                <HBox alignment="CENTER_LEFT">
+                    <Label text="Danh sách tài khoản hệ thống" style="-fx-font-size: 18px; -fx-font-weight: bold;"/>
+                    <Region HBox.hgrow="ALWAYS" />
+                    <!-- NÚT MỚI: Refresh cho Tab 2 -->
+                    <Button text="Làm mới bảng" onAction="#refreshData"
+                            style="-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;"/>
+                </HBox>
+
                 <TableView fx:id="tableUsers" VBox.vgrow="ALWAYS">
                     <columns>
                         <TableColumn fx:id="colUsername" text="Tên đăng nhập" prefWidth="200" />
@@ -75,7 +83,6 @@
                     </columnResizePolicy>
                 </TableView>
 
-                <!-- Hàng nút bấm quản lý Member đã được khôi phục -->
                 <HBox alignment="CENTER_RIGHT" spacing="15">
                     <Button text="Khóa tài khoản" onAction="#handleBlockUser"
                             style="-fx-background-color: #e67e22; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 25; -fx-cursor: hand;" />
@@ -88,6 +95,14 @@
         <!-- TAB 3: QUẢN LÝ SẢN PHẨM -->
         <Tab text="Quản lý sản phẩm">
             <VBox spacing="10" style="-fx-padding: 15;">
+                <HBox alignment="CENTER_LEFT">
+                    <Label text="Danh sách sản phẩm đấu giá" style="-fx-font-size: 18px; -fx-font-weight: bold;"/>
+                    <Region HBox.hgrow="ALWAYS" />
+                    <!-- NÚT MỚI: Refresh cho Tab 3 -->
+                    <Button fx:id="btnRefresh" text="Làm mới bảng" onAction="#refreshData"
+                            style="-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;"/>
+                </HBox>
+
                 <TableView fx:id="tableItems" VBox.vgrow="ALWAYS">
                     <columns>
                         <TableColumn fx:id="colName" text="Tên sản phẩm" prefWidth="140" />

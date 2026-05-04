@@ -5,6 +5,8 @@ import com.auction.database.ItemDAO;
 import com.auction.database.SellerDAO;
 import com.auction.ui.dialogs.TransactionController;
 import com.auction.util.NavigationService;
+import javafx.application.Platform;
+import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -24,28 +26,27 @@ public class BidderController {
     @FXML private TableColumn<Item, String> colName, colCategory, colDetails, colSeller;
     @FXML private TableColumn<Item, Double> colStartPrice, colBinPrice;
     @FXML private TableColumn<Item, Timestamp> colTimeLeft;
+    @FXML private Button btnRefresh; // Nút làm mới
 
     private ItemDAO itemDAO = new ItemDAO();
-    private SellerDAO sellerDAO = new SellerDAO(); // Dùng chung để lấy balance
+    private SellerDAO sellerDAO = new SellerDAO();
     private String username;
     private int userId;
 
     @FXML
     public void initialize() {
-        // 1. Map dữ liệu vào cột
+        setupColumns();
+        setupTimeLeftColumn();
+        // Không gọi refresh ở đây nữa vì setBidderInfo sẽ gọi sau khi có username
+    }
+
+    private void setupColumns() {
         colName.setCellValueFactory(new PropertyValueFactory<>("name"));
         colCategory.setCellValueFactory(new PropertyValueFactory<>("category"));
         colDetails.setCellValueFactory(new PropertyValueFactory<>("description"));
         colStartPrice.setCellValueFactory(new PropertyValueFactory<>("startPrice"));
         colBinPrice.setCellValueFactory(new PropertyValueFactory<>("binPrice"));
-
-        // Cột người bán - Đảm bảo ItemDAO của bạn có put("sellerName", ...)
         colSeller.setCellValueFactory(new PropertyValueFactory<>("sellerName"));
-
-        // 2. Định dạng đếm ngược thời gian
-        setupTimeLeftColumn();
-
-        refreshTable();
     }
 
     private void setupTimeLeftColumn() {
@@ -81,30 +82,47 @@ public class BidderController {
     public void setBidderInfo(int id, String username) {
         this.userId = id;
         this.username = username;
-        refreshBalance();
-        refreshTable();
+        refreshAll();
     }
 
-    public void refreshBalance() {
-        if (lblBalance != null && username != null) {
-            double balance = sellerDAO.getUserBalance(username);
-            lblBalance.setText(String.format("%,.0f VNĐ", balance));
-        }
+    public void setBidderInfo(String username) {
+        this.username = username;
+        refreshAll();
     }
 
     @FXML
-    public void refreshTable() {
-        if (tableItems != null) {
-            // Lấy tất cả sản phẩm đang trong trạng thái OPEN từ DB
-            tableItems.setItems(itemDAO.getAllOpenItems());
-        }
+    public void refreshAll() {
+        if (btnRefresh != null) btnRefresh.setDisable(true);
+
+        new Thread(() -> {
+            try {
+                // 1. Lấy dữ liệu Balance
+                double balance = (username != null) ? sellerDAO.getUserBalance(username) : 0;
+
+                // 2. Lấy danh sách sản phẩm
+                ObservableList<Item> items = itemDAO.getAllOpenItems();
+
+                // 3. Cập nhật giao diện
+                Platform.runLater(() -> {
+                    if (lblBalance != null) {
+                        lblBalance.setText(String.format("%,.0f VNĐ", balance));
+                    }
+                    if (tableItems != null) {
+                        tableItems.setItems(items);
+                    }
+                    if (btnRefresh != null) btnRefresh.setDisable(false);
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    if (btnRefresh != null) btnRefresh.setDisable(false);
+                    System.err.println("Lỗi load dữ liệu Bidder: " + e.getMessage());
+                });
+            }
+        }).start();
     }
 
-    @FXML
-    private void handleOpenDeposit() { openTransactionWindow("DEPOSIT"); }
-
-    @FXML
-    private void handleOpenWithdraw() { openTransactionWindow("WITHDRAW"); }
+    @FXML private void handleOpenDeposit() { openTransactionWindow("DEPOSIT"); }
+    @FXML private void handleOpenWithdraw() { openTransactionWindow("WITHDRAW"); }
 
     private void openTransactionWindow(String mode) {
         try {
@@ -117,16 +135,10 @@ public class BidderController {
             stage.initModality(Modality.APPLICATION_MODAL);
             stage.setScene(new Scene(root));
             stage.showAndWait();
-            refreshBalance();
+            refreshAll(); // Làm mới sau khi nạp/rút
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
-    public void setBidderInfo(String username) {
-        this.username = username;
-        // Vì không có ID nên userId sẽ mặc định là 0 hoặc lấy từ DB sau
-        refreshBalance();
-        refreshTable();
     }
 
     @FXML
