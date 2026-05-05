@@ -10,7 +10,7 @@ import java.util.Map;
 public class ItemDAO {
 
     /**
-     * 1. Lấy tất cả sản phẩm đang OPEN và chưa hết hạn (Cho màn hình chính của Bidder)
+     * 1. Lấy tất cả sản phẩm đang OPEN và chưa hết hạn
      */
     public ObservableList<Item> getAllOpenItems() {
         ObservableList<Item> list = FXCollections.observableArrayList();
@@ -32,11 +32,10 @@ public class ItemDAO {
     }
 
     /**
-     * 2. Lấy danh sách sản phẩm mà người dùng đã thắng (Để thanh toán)
+     * 2. Lấy danh sách sản phẩm mà người dùng đã thắng
      */
     public ObservableList<Item> getWonItems(int userId) {
         ObservableList<Item> list = FXCollections.observableArrayList();
-        // Lấy những item có status CLOSED và winner_id là chính mình
         String sql = "SELECT i.*, u.username AS seller_name FROM items i " +
                 "JOIN users u ON i.seller_id = u.id " +
                 "WHERE i.status = 'CLOSED' AND i.winner_id = ? " +
@@ -57,11 +56,12 @@ public class ItemDAO {
     }
 
     /**
-     * 3. Đóng phiên đấu giá và cập nhật người thắng (Dùng khi mua đứt hoặc hết giờ)
+     * 3. Đóng phiên đấu giá (Mua đứt hoặc hết giờ)
+     * Thêm điều kiện status = 'OPEN' để tránh đóng 1 phiên 2 lần
      */
     public boolean closeAuction(int itemId, int winnerId) {
-        // Cập nhật trạng thái thành CLOSED, set winner_id và thời gian kết thúc
-        String sql = "UPDATE items SET status = 'CLOSED', winner_id = ?, end_time = NOW() WHERE id = ?";
+        String sql = "UPDATE items SET status = 'CLOSED', winner_id = ?, end_time = NOW() " +
+                "WHERE id = ? AND status = 'OPEN'";
         try (Connection conn = DBContext.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, winnerId);
@@ -74,7 +74,25 @@ public class ItemDAO {
     }
 
     /**
-     * 4. Lấy tất cả sản phẩm cho Admin
+     * 4. Gia hạn thời gian (Anti-Snipe)
+     * Chỉ gia hạn nếu phiên vẫn đang OPEN
+     */
+    public boolean extendAuctionTime(int itemId, int minutesToAdd) {
+        String sql = "UPDATE items SET end_time = DATE_ADD(end_time, INTERVAL ? MINUTE) " +
+                "WHERE id = ? AND status = 'OPEN'";
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, minutesToAdd);
+            ps.setInt(2, itemId);
+            return ps.executeUpdate() > 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * 5. Lấy tất cả sản phẩm cho Admin
      */
     public ObservableList<Item> getAllItemsForAdmin() {
         ObservableList<Item> list = FXCollections.observableArrayList();
@@ -94,7 +112,7 @@ public class ItemDAO {
     }
 
     /**
-     * 5. Lấy sản phẩm theo Seller ID
+     * 6. Lấy sản phẩm theo Seller ID
      */
     public ObservableList<Item> getItemsBySeller(int sellerId) {
         ObservableList<Item> list = FXCollections.observableArrayList();
@@ -117,7 +135,7 @@ public class ItemDAO {
     }
 
     /**
-     * 6. Thêm sản phẩm mới
+     * 7. Thêm sản phẩm mới
      */
     public boolean addItem(Item item, int sellerId) {
         String sql = "INSERT INTO items (name, description, startPrice, binPrice, step, category, " +
@@ -142,8 +160,6 @@ public class ItemDAO {
             return false;
         }
     }
-
-    // --- CÁC HÀM TRỢ GIÚP (HELPER) ---
 
     private void setSpecificData(PreparedStatement ps, Item item) throws SQLException {
         for (int i = 9; i <= 17; i++) ps.setNull(i, Types.NULL);
@@ -190,19 +206,5 @@ public class ItemDAO {
         specific.put("mileage", rs.getDouble("mileage"));
 
         return ItemFactory.createItem(category, common, specific);
-    }
-
-    public boolean extendAuctionTime(int itemId, int minutesToAdd) {
-        // Sử dụng DATE_ADD của SQL để cộng thời gian chính xác nhất
-        String sql = "UPDATE items SET end_time = DATE_ADD(end_time, INTERVAL ? MINUTE) WHERE id = ?";
-        try (Connection conn = DBContext.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, minutesToAdd);
-            ps.setInt(2, itemId);
-            return ps.executeUpdate() > 0;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
-        }
     }
 }

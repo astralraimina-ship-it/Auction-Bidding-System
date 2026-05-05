@@ -34,7 +34,7 @@ public class BidderAuctionRoomController {
     }
 
     /**
-     * Nhận ID người dùng từ Controller gọi nó (QUAN TRỌNG)
+     * Nhận ID người dùng từ Dashboard
      */
     public void setUserId(int id) {
         this.currentUserId = id;
@@ -54,29 +54,42 @@ public class BidderAuctionRoomController {
 
     private void processBidLogic(double bidAmount) {
         synchronized (lock) {
+            // --- CHỐT CHẶN THỜI GIAN (100% CẤM BID KHI HẾT GIỜ) ---
+            long currentTime = System.currentTimeMillis();
+            long endTime = currentItem.getEndTime().getTime();
+
+            if (currentTime >= endTime) {
+                showError("Rất tiếc! Phiên đấu giá này đã kết thúc.");
+                txtBidInput.setDisable(true);
+                btnPlaceBid.setDisable(true);
+                return;
+            }
+
             double currentMax = bidDAO.getCurrentMaxBid(currentItem.getId(), currentItem.getStartPrice());
 
+            // Kiểm tra ngưỡng mua đứt
             if (bidAmount >= currentItem.getBinPrice()) {
                 handleBinConfirmation();
                 return;
             }
 
+            // Kiểm tra bước giá
             if (bidAmount < (currentMax + currentItem.getStep())) {
-                showError("Giá đặt phải cao hơn " + String.format("%,.0f", (currentMax + currentItem.getStep())));
+                showError("Giá đặt phải cao hơn " + String.format("%,.0f", (currentMax + currentItem.getStep())) + " VNĐ");
                 return;
             }
 
-            // Dùng biến currentUserId đã được set từ Dashboard
+            // Ghi nhận lượt bid vào Database
             boolean success = bidDAO.placeBid(currentItem.getId(), currentUserId, bidAmount);
             if (success) {
-                logAction("BẠN đã đặt giá thành công: " + String.format("%,.0f", bidAmount));
+                logAction("BẠN đã đặt giá thành công: " + String.format("%,.0f", bidAmount) + " VNĐ");
 
-                // === GỌI LOGIC ANTI-SNIPE TẠI ĐÂY ===
+                // Kích hoạt Anti-Snipe nếu bid ở những giây cuối
                 handleAntiSnipe(currentItem);
 
                 manualRefresh();
             } else {
-                showError("Đặt giá thất bại!");
+                showError("Đặt giá thất bại! Có thể phiên đấu giá đã đóng trên máy chủ.");
             }
         }
     }
@@ -92,43 +105,34 @@ public class BidderAuctionRoomController {
             boolean bidSuccess = bidDAO.placeBid(currentItem.getId(), currentUserId, currentItem.getBinPrice());
 
             if (bidSuccess) {
-                // Truyền currentUserId thực tế vào để Database ghi nhận đúng người thắng
                 boolean updateSuccess = itemDAO.closeAuction(currentItem.getId(), currentUserId);
-
                 if (updateSuccess) {
                     logAction("CHÚC MỪNG! Bạn đã mua đứt thành công.");
                     logAction("Hệ thống: Phiên đấu giá đã kết thúc.");
 
                     txtBidInput.setDisable(true);
-                    if (btnPlaceBid != null) btnPlaceBid.setDisable(true);
-
+                    btnPlaceBid.setDisable(true);
                     manualRefresh();
                 }
             }
         }
     }
 
-    // Logic Anti-Snipe: Tự động gia hạn thời gian nếu có người bid sát giờ cuối
     private void handleAntiSnipe(Item item) {
         if (item.getEndTime() == null) return;
 
-        // 1. Tính thời gian còn lại (ms)
         long timeLeft = item.getEndTime().getTime() - System.currentTimeMillis();
 
-        // 2. Nếu thời gian còn lại dưới 1 phút (60,000 ms) và vẫn còn trong hạn
+        // Nếu còn dưới 1 phút, tự động gia hạn thêm 2 phút
         if (timeLeft > 0 && timeLeft < 60000) {
-            int minutesToExtend = 2; // Gia hạn thêm 2 phút
-
-            // Gọi ItemDAO để cập nhật xuống Database Aiven
+            int minutesToExtend = 2;
             boolean success = itemDAO.extendAuctionTime(item.getId(), minutesToExtend);
 
             if (success) {
-                // Cập nhật lại thời gian kết thúc của đối tượng local để UI đồng bộ
                 long newEndTimeMillis = item.getEndTime().getTime() + (minutesToExtend * 60 * 1000);
                 item.setEndTime(new java.sql.Timestamp(newEndTimeMillis));
 
                 logAction("Hệ thống: Phát hiện đấu giá sát nút! Tự động gia hạn thêm " + minutesToExtend + " phút.");
-                System.out.println("Anti-Snipe: Đã gia hạn cho sản phẩm ID " + item.getId());
             }
         }
     }
