@@ -191,4 +191,18 @@ public class ItemDAO {
 
         return ItemFactory.createItem(category, common, specific);
     }
+
+    public boolean extendAuctionTime(int itemId, int minutesToAdd) {
+        // Sử dụng DATE_ADD của SQL để cộng thời gian chính xác nhất
+        String sql = "UPDATE items SET end_time = DATE_ADD(end_time, INTERVAL ? MINUTE) WHERE id = ?";
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, minutesToAdd);
+            ps.setInt(2, itemId);
+            return ps.executeUpdate() > 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
 }

@@ -44,4 +44,5 @@ public abstract class Item implements Serializable {
     public String getCategory() { return category; }
     public Timestamp getEndTime() { return endTime; }
     public String getStatus() { return status; }
+    public void setEndTime(Timestamp endTime) {}
 }
