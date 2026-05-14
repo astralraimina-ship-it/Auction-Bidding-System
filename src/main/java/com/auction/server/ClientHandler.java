@@ -28,8 +28,8 @@ public class ClientHandler implements Runnable {
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             out = new PrintWriter(socket.getOutputStream(), true);
             String request;
+            // Vòng lặp lắng nghe lệnh từ Client
             while ((request = in.readLine()) != null) {
-                System.out.println(request);
 //                Sử dụng định dạng BID;itemId;userId;bidAmount
                 String[] part = request.split(";");
                 String command = part[0];
@@ -39,15 +39,32 @@ public class ClientHandler implements Runnable {
                     double bidAmount = Double.parseDouble(part[3]);
                     boolean success = bidDAO.placeBid(itemId, userId, bidAmount);
                     if (success){
-                        AuctionServer.broadcast("UPDATE");
+                        this.sendMessage("Notify;BẠN đã đặt giá thành công: " + String.format("%,.0f", bidAmount) + " VNĐ");
+                        AuctionServer.broadcast("Update");
+                    }
+                    else{
+                        this.sendMessage("Error;Đặt giá thất bại! Có thể phiên đấu giá đã đóng trên máy chủ.");
                     }
                 }
             }
         } catch (IOException e) {
+            // Lỗi này xảy ra khi Client tắt đột ngột (nhấn X, mất mạng)
             System.out.println("Client mất kết nối");
-            AuctionServer.removeClient(this);
-        }finally {
-            try { socket.close(); } catch (IOException e) { e.printStackTrace(); }
+        }
+        /*
+         * KHỐI FINALLY: Luôn chạy dù có lỗi hay không.
+         * Đảm bảo khi Thread kết thúc, client PHẢI được xóa khỏi danh sách của Server
+         * và giải phóng các tài nguyên (Socket, Stream).
+         */
+        finally {
+            try {
+                AuctionServer.removeClient(this);
+                socket.close();
+                in.close();
+                out.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 

@@ -29,9 +29,12 @@ public class AuctionServer {
         }
     }
 
+//   loại bỏ ClientHandler khỏi danh sách quản lý khi client ngắt kết nối
+//    tránh lỗi gửi tin nhắn (Broadcast) vào một kết nối đã chết
     public static void removeClient(ClientHandler client){
         clients.remove(client);
     }
+
     public static int getPort(){
         return PORT;
     }

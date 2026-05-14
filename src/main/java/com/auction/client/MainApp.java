@@ -1,5 +1,7 @@
 package com.auction.client;
 
+import com.auction.network.ClientManager;
+import com.auction.server.AuctionServer;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
@@ -15,7 +17,17 @@ public class MainApp extends Application {
         stage.show();
     }
 
+    /**
+     * Phương thức stop() được JavaFX tự động gọi khi người dùng đóng ứng dụng.
+     * Đây là nơi lý tưởng để dọn dẹp kết nối ngầm.
+     */
+    @Override
+    public void stop() throws Exception {
+        ClientManager.getInstance().closeConnection();
+    }
+
     public static void main(String[] args) {
+        ClientManager.getInstance().startListening();
         launch();
     }
 }

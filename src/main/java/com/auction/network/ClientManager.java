@@ -92,7 +92,6 @@ public class ClientManager {
      * Gửi yêu cầu/lệnh lên Server (Ví dụ: "BID;1;10;500000")
      */
     public void sendCommand(String msg) {
-        System.out.println("manager" + msg);
         if (out != null) {
             new Thread(() -> {
                 out.println(msg);

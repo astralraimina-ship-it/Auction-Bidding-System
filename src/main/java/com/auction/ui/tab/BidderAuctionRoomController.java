@@ -3,6 +3,7 @@ package com.auction.ui.tab;
 import com.auction.common.item.Item;
 import com.auction.database.BidDAO;
 import com.auction.database.ItemDAO;
+import com.auction.network.ClientManager;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
@@ -31,6 +32,18 @@ public class BidderAuctionRoomController {
         lblStep.setText("Bước giá tối thiểu: " + String.format("%,.0f", item.getStep()) + " VNĐ");
         lblBinPrice.setText("Giá mua đứt: " + String.format("%,.0f", item.getBinPrice()) + " VNĐ");
         manualRefresh();
+        ClientManager.getInstance().setUpdateListener(signal -> {
+            if (signal.equals("Update")){
+                manualRefresh();
+                handleAntiSnipe(currentItem);
+            }
+            else if (signal.startsWith("Notify;")){
+                logAction(signal.substring(7));
+            }
+            else if (signal.startsWith("Error;")){
+                showError(signal.substring(6));
+            }
+        });
     }
 
     /**
@@ -80,17 +93,7 @@ public class BidderAuctionRoomController {
             }
 
             // Ghi nhận lượt bid vào Database
-            boolean success = bidDAO.placeBid(currentItem.getId(), currentUserId, bidAmount);
-            if (success) {
-                logAction("BẠN đã đặt giá thành công: " + String.format("%,.0f", bidAmount) + " VNĐ");
-
-                // Kích hoạt Anti-Snipe nếu bid ở những giây cuối
-                handleAntiSnipe(currentItem);
-
-                manualRefresh();
-            } else {
-                showError("Đặt giá thất bại! Có thể phiên đấu giá đã đóng trên máy chủ.");
-            }
+            ClientManager.getInstance().sendCommand("BID;" + currentItem.getId() + ";" + currentUserId + ";" + bidAmount);
         }
     }
 
