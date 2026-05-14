@@ -16,14 +16,18 @@ public class ItemDAO {
         ObservableList<Item> list = FXCollections.observableArrayList();
         String sql = "SELECT i.*, u.username AS seller_name FROM items i " +
                 "JOIN users u ON i.seller_id = u.id " +
-                "WHERE i.status = 'OPEN' AND i.end_time > NOW() " +
+                "WHERE i.status = 'OPEN' AND i.end_time > ? " +
                 "ORDER BY i.end_time ASC";
 
         try (Connection conn = DBContext.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                list.add(mapResultSetToItem(rs));
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            Timestamp currentTime = new Timestamp(System.currentTimeMillis());
+            ps.setTimestamp(1, currentTime);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(mapResultSetToItem(rs));
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -60,12 +64,14 @@ public class ItemDAO {
      * Thêm điều kiện status = 'OPEN' để tránh đóng 1 phiên 2 lần
      */
     public boolean closeAuction(int itemId, int winnerId) {
-        String sql = "UPDATE items SET status = 'CLOSED', winner_id = ?, end_time = NOW() " +
+        String sql = "UPDATE items SET status = 'CLOSED', winner_id = ?, end_time = ? " +
                 "WHERE id = ? AND status = 'OPEN'";
         try (Connection conn = DBContext.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
+            Timestamp currentTime = new Timestamp(System.currentTimeMillis());
             ps.setInt(1, winnerId);
-            ps.setInt(2, itemId);
+            ps.setTimestamp(2, currentTime);
+            ps.setInt(3, itemId);
             return ps.executeUpdate() > 0;
         } catch (Exception e) {
             e.printStackTrace();
