@@ -3,6 +3,7 @@ package com.auction.ui.tab;
 import com.auction.common.item.Item;
 import com.auction.database.ItemDAO;
 import com.auction.database.SellerDAO;
+import com.auction.network.ClientManager;
 import com.auction.ui.dialogs.TransactionController;
 import com.auction.util.NavigationService;
 import javafx.application.Platform;
@@ -46,6 +47,11 @@ public class BidderController {
         setupAuctionColumns();
         setupWonColumns();
         setupRowFactory();
+        ClientManager.getInstance().setUpdateListener(signal -> {
+            if (signal.equals("Refresh")){
+                refreshAll();
+            }
+        });
     }
 
     private void setupAuctionColumns() {

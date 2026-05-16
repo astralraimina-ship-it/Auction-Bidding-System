@@ -3,6 +3,7 @@ package com.auction.ui.tab;
 import com.auction.common.item.Item;
 import com.auction.database.ItemDAO;
 import com.auction.database.SellerDAO;
+import com.auction.network.ClientManager;
 import com.auction.ui.dialogs.AddItemController;
 import com.auction.ui.dialogs.TransactionController;
 import com.auction.util.NavigationService;
@@ -38,6 +39,11 @@ public class SellerController {
     public void initialize() {
         setupColumns();
         setupTimeLeftColumn();
+        ClientManager.getInstance().setUpdateListener(signal -> {
+            if (signal.equals("Refresh")){
+                refreshAll();
+            }
+        });
     }
 
     private void setupColumns() {

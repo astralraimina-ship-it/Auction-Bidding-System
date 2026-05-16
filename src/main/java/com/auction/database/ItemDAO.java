@@ -213,4 +213,30 @@ public class ItemDAO {
 
         return ItemFactory.createItem(category, common, specific);
     }
+    /**
+     * Tự động kiểm tra và đóng các phiên đấu giá đã hết hạn.
+     * @return true nếu có ít nhất một sản phẩm vừa bị đóng, false nếu không có thay đổi nào.
+     */
+    public boolean checkAndCloseExpiredItems() {
+        // SQL: Cập nhật trạng thái thành 'CLOSED' cho những item có end_time nhỏ hơn hoặc bằng thời gian hiện tại
+        String sql = "UPDATE items SET status = 'CLOSED' " +
+                "WHERE status = 'OPEN' AND end_time <= ?";
+
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            Timestamp currentTime = new Timestamp(System.currentTimeMillis());
+            ps.setTimestamp(1, currentTime);
+
+            int rowsUpdated = ps.executeUpdate();
+
+            if (rowsUpdated > 0) {
+                System.out.println(">>> [Hệ thống] Đã đóng " + rowsUpdated + " phiên đấu giá hết hạn.");
+                return true;
+            }
+        } catch (Exception e) {
+            System.err.println("Lỗi khi quét sản phẩm hết hạn: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return false;
+    }
 }

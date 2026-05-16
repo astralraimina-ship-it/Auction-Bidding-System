@@ -33,11 +33,17 @@ public class BidderAuctionRoomController {
         lblBinPrice.setText("Giá mua đứt: " + String.format("%,.0f", item.getBinPrice()) + " VNĐ");
         manualRefresh();
         ClientManager.getInstance().setUpdateListener(signal -> {
-            if (signal.equals("Update")){
+            if (signal.equals("Refresh")){
                 manualRefresh();
+            } else if (signal.equals("AntiSnipe")){
                 handleAntiSnipe(currentItem);
-            }
-            else if (signal.startsWith("Notify;")){
+            }else if (signal.equals("Closed")) {
+                logAction("Hệ thống: Phiên đấu giá đã kết thúc.");
+
+                txtBidInput.setDisable(true);
+                btnPlaceBid.setDisable(true);
+                manualRefresh();
+            } else if (signal.startsWith("Notify;")){
                 logAction(signal.substring(7));
             }
             else if (signal.startsWith("Error;")){
@@ -92,7 +98,6 @@ public class BidderAuctionRoomController {
                 return;
             }
 
-            // Ghi nhận lượt bid vào Database
             ClientManager.getInstance().sendCommand("BID;" + currentItem.getId() + ";" + currentUserId + ";" + bidAmount);
         }
     }
@@ -105,19 +110,7 @@ public class BidderAuctionRoomController {
 
         Optional<ButtonType> result = alert.showAndWait();
         if (result.isPresent() && result.get() == ButtonType.OK) {
-            boolean bidSuccess = bidDAO.placeBid(currentItem.getId(), currentUserId, currentItem.getBinPrice());
-
-            if (bidSuccess) {
-                boolean updateSuccess = itemDAO.closeAuction(currentItem.getId(), currentUserId);
-                if (updateSuccess) {
-                    logAction("CHÚC MỪNG! Bạn đã mua đứt thành công.");
-                    logAction("Hệ thống: Phiên đấu giá đã kết thúc.");
-
-                    txtBidInput.setDisable(true);
-                    btnPlaceBid.setDisable(true);
-                    manualRefresh();
-                }
-            }
+            ClientManager.getInstance().sendCommand("BIN;" + currentItem.getId() + ";" + currentUserId + ";" + currentItem.getBinPrice());
         }
     }
 

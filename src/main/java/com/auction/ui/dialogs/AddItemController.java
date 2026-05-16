@@ -3,6 +3,7 @@ package com.auction.ui.dialogs;
 import com.auction.common.item.Item;
 import com.auction.common.item.ItemFactory;
 import com.auction.database.ItemDAO;
+import com.auction.network.ClientManager;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.stage.Stage;
@@ -118,6 +119,7 @@ public class AddItemController {
             }
 
             if (dao.addItem(newItem, currentUserId)) {
+                ClientManager.getInstance().sendCommand("NEW_ITEM");
                 showAlert("Thành công", "Sản phẩm đã được đăng lên hệ thống!");
                 closeWindow();
             } else {

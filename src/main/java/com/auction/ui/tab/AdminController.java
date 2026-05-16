@@ -4,6 +4,7 @@ import com.auction.common.item.Item;
 import com.auction.common.user.User;
 import com.auction.database.AdminDAO;
 import com.auction.database.ItemDAO;
+import com.auction.network.ClientManager;
 import com.auction.transaction.Transaction;
 import com.auction.util.NavigationService;
 import javafx.application.Platform;
@@ -41,6 +42,11 @@ public class AdminController {
     public void initialize() {
         setupColumns();
         refreshData(); // Tự động load lần đầu
+        ClientManager.getInstance().setUpdateListener(signal -> {
+            if (signal.equals("Refresh")){
+                refreshData();
+            }
+        });
     }
 
     // Hàm Refresh dùng chung cho cả 3 bảng, chạy ngầm để không treo App
