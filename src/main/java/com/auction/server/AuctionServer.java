@@ -37,6 +37,7 @@ public class AuctionServer {
                 ClientHandler client = new ClientHandler(socket);
                 clients.add(client);
                 new Thread(client).start();
+                System.out.println(clients.size());
             }
         }
         catch (IOException e){
