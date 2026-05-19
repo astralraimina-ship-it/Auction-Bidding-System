@@ -37,7 +37,7 @@ public class ClientManager {
     private void connect() {
         try {
             // Thay đổi IP/Port nếu server chạy ở máy khác hoặc port khác
-            socket = new Socket("localhost", AuctionServer.getPort());
+            socket = new Socket("10.11.68.195", AuctionServer.getPort());
             // Auto-flush set là true để đẩy dữ liệu đi ngay khi gọi println
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
