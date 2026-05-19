@@ -14,7 +14,6 @@
         <Insets top="25" right="30" bottom="25" left="30"/>
     </padding>
 
-    <!-- Header Admin -->
     <HBox alignment="CENTER_LEFT" style="-fx-background-color: #c0392b; -fx-padding: 15; -fx-background-radius: 10;">
         <VBox>
             <Label text="HỆ THỐNG QUẢN TRỊ VIÊN"
@@ -28,13 +27,11 @@
 
     <TabPane fx:id="adminTabPane" VBox.vgrow="ALWAYS" tabClosingPolicy="UNAVAILABLE" style="-fx-background-color: white; -fx-background-radius: 10;">
 
-        <!-- TAB 1: DUYỆT GIAO DỊCH -->
         <Tab text="Duyệt Nạp/Rút Tiền">
             <VBox spacing="15" style="-fx-padding: 15;">
                 <HBox alignment="CENTER_LEFT">
                     <Label text="Yêu cầu giao dịch đang chờ xử lý" style="-fx-font-size: 18px; -fx-font-weight: bold;"/>
                     <Region HBox.hgrow="ALWAYS" />
-                    <!-- Nút Refresh cho Tab 1 -->
                     <Button fx:id="btnRefresh1" text="Làm mới bảng" onAction="#refreshData"
                             style="-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;"/>
                 </HBox>
@@ -60,13 +57,11 @@
             </VBox>
         </Tab>
 
-        <!-- TAB 2: QUẢN LÝ NGƯỜI DÙNG -->
         <Tab text="Quản lý người dùng">
             <VBox spacing="15" style="-fx-padding: 15;">
                 <HBox alignment="CENTER_LEFT">
                     <Label text="Danh sách tài khoản hệ thống" style="-fx-font-size: 18px; -fx-font-weight: bold;"/>
                     <Region HBox.hgrow="ALWAYS" />
-                    <!-- NÚT MỚI: Refresh cho Tab 2 -->
                     <Button text="Làm mới bảng" onAction="#refreshData"
                             style="-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;"/>
                 </HBox>
@@ -84,6 +79,8 @@
                 </TableView>
 
                 <HBox alignment="CENTER_RIGHT" spacing="15">
+                    <Button text="Mở khóa" onAction="#handleUnblockUser"
+                            style="-fx-background-color: #2980b9; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 25; -fx-cursor: hand;" />
                     <Button text="Khóa tài khoản" onAction="#handleBlockUser"
                             style="-fx-background-color: #e67e22; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 25; -fx-cursor: hand;" />
                     <Button text="Duyệt Member" onAction="#handleApproveUser"
@@ -92,13 +89,11 @@
             </VBox>
         </Tab>
 
-        <!-- TAB 3: QUẢN LÝ SẢN PHẨM -->
         <Tab text="Quản lý sản phẩm">
             <VBox spacing="10" style="-fx-padding: 15;">
                 <HBox alignment="CENTER_LEFT">
                     <Label text="Danh sách sản phẩm đấu giá" style="-fx-font-size: 18px; -fx-font-weight: bold;"/>
                     <Region HBox.hgrow="ALWAYS" />
-                    <!-- NÚT MỚI: Refresh cho Tab 3 -->
                     <Button fx:id="btnRefresh" text="Làm mới bảng" onAction="#refreshData"
                             style="-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;"/>
                 </HBox>

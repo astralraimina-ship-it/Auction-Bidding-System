@@ -2,8 +2,8 @@
 
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
-<?import javafx.geometry.Insets?>
 <?import javafx.scene.text.Font?>
+<?import javafx.geometry.Insets?>
 
 <VBox spacing="20" prefHeight="700" prefWidth="1050"
       xmlns="http://javafx.com/javafx/8"
@@ -15,7 +15,6 @@
         <Insets top="25" right="30" bottom="25" left="30"/>
     </padding>
 
-    <!-- Header Section (Giữ nguyên) -->
     <HBox alignment="CENTER_LEFT" spacing="15">
         <VBox>
             <Label text="UET AUCTION - BIDDER"
@@ -24,7 +23,11 @@
         </VBox>
 
         <Button fx:id="btnRefresh" text="🔄 Làm mới" onAction="#refreshAll"
-                style="-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand; -fx-margin-left: 20;"/>
+                style="-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;">
+            <HBox.margin>
+                <Insets left="20" />
+            </HBox.margin>
+        </Button>
 
         <Region HBox.hgrow="ALWAYS" />
 
@@ -46,10 +49,8 @@
         </VBox>
     </HBox>
 
-    <!-- Main Content Section (Dùng TabPane để chứa cả 2 bảng) -->
     <TabPane VBox.vgrow="ALWAYS" tabClosingPolicy="UNAVAILABLE" style="-fx-background-color: transparent;">
         <tabs>
-            <!-- Tab 1: Sàn đấu giá (Giữ nguyên bảng cũ của ông) -->
             <Tab text="Sàn đấu giá">
                 <VBox spacing="10" style="-fx-padding: 15 0 0 0;">
                     <Label text="* Nhấn đúp vào sản phẩm để tham gia đấu giá" style="-fx-font-size: 12px; -fx-text-fill: #7f8c8d; -fx-font-style: italic;"/>
@@ -70,7 +71,6 @@
                 </VBox>
             </Tab>
 
-            <!-- Tab 2: Sản phẩm đã thắng (Bảng mới thêm vào) -->
             <Tab text="Sản phẩm đã thắng">
                 <VBox spacing="15" style="-fx-padding: 15 0 0 0;">
                     <TableView fx:id="tableWonItems" VBox.vgrow="ALWAYS" style="-fx-background-radius: 5; -fx-font-size: 14px;">
@@ -78,7 +78,7 @@
                             <TableColumn fx:id="colWonName" text="Tên sản phẩm" prefWidth="200" />
                             <TableColumn fx:id="colWonSeller" text="Người bán" prefWidth="150" style="-fx-alignment: CENTER;" />
                             <TableColumn fx:id="colWonPrice" text="Giá thắng" prefWidth="150" style="-fx-alignment: CENTER-RIGHT;" />
-                            <TableColumn fx:id="colWonDate" text="Ngày kết thúc" prefWidth="200" style="-fx-alignment: CENTER;" />
+                            <TableColumn fx:id="colWonDate" text="Hạn thanh toán" prefWidth="200" style="-fx-alignment: CENTER;" />
                         </columns>
                         <columnResizePolicy>
                             <TableView fx:constant="CONSTRAINED_RESIZE_POLICY" />
@@ -93,7 +93,6 @@
         </tabs>
     </TabPane>
 
-    <!-- Footer Section (Giữ nguyên) -->
     <HBox alignment="CENTER_RIGHT" spacing="15">
         <Button text="Đăng xuất" onAction="#handleLogout"
                 style="-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 20; -fx-background-radius: 5; -fx-cursor: hand;" />

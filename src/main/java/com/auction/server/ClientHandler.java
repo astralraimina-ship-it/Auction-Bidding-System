@@ -36,7 +36,10 @@ public class ClientHandler implements Runnable {
                     String[] part = request.split(";");
                     int itemId = Integer.parseInt(part[1]);
                     int userId = Integer.parseInt(part[2]);
-                    double bidAmount = Double.parseDouble(part[3]);
+
+                    // SỬA AN TOÀN: Đọc số double bất chấp cấu hình máy Server
+                    double bidAmount = parseDoubleSafe(part[3]);
+
                     boolean success = bidDAO.placeBid(itemId, userId, bidAmount);
                     if (success){
                         this.sendMessage("Notify;BẠN đã đặt giá thành công: " + String.format("%,.0f", bidAmount) + " VNĐ");
@@ -51,7 +54,10 @@ public class ClientHandler implements Runnable {
                     String[] part = request.split(";");
                     int itemId = Integer.parseInt(part[1]);
                     int userId = Integer.parseInt(part[2]);
-                    double binPrice = Double.parseDouble(part[3]);
+
+                    // SỬA AN TOÀN: Đọc số double bất chấp cấu hình máy Server
+                    double binPrice = parseDoubleSafe(part[3]);
+
                     boolean success = bidDAO.placeBid(itemId, userId, binPrice);
                     if (success){
                         boolean updateSuccess = itemDAO.closeAuction(itemId, userId);
@@ -61,12 +67,34 @@ public class ClientHandler implements Runnable {
                         }
                     }
                 }
+                // ĐÃ SỬA ĐỒNG BỘ: Gửi đúng mã lệnh PAY_SUCCESS / PAY_FAILED về Client
+                else if (request.startsWith("PAY")) {
+                    String[] part = request.split(";");
+                    int itemId = Integer.parseInt(part[1]);
+                    int userId = Integer.parseInt(part[2]);
+
+                    // ĐÃ SỬA CHÍ MẠNG: Ép Server bóc tách số tiền theo định dạng chuẩn US (dấu chấm thập phân)
+                    double amount = parseDoubleSafe(part[3]);
+
+                    System.out.println(">>> [SERVER XỬ LÝ PAY] ItemID: " + itemId + " | UserID: " + userId + " | Số tiền nhận: " + amount);
+
+                    // Gọi hàm xử lý Transaction dưới DB
+                    boolean success = itemDAO.payForItem(itemId, userId, amount);
+
+                    if (success) {
+                        // Gửi mã chính xác để Client chặn xử lý luồng hiển thị Alert
+                        this.sendMessage("PAY_SUCCESS");
+                        // Đồng bộ làm mới bảng của mọi Client khác đang mở app
+                        AuctionServer.broadcast("Refresh");
+                    } else {
+                        this.sendMessage("PAY_FAILED;Số dư ví không đủ hoặc đơn hàng đã xử lý trước đó!");
+                    }
+                }
                 else if (request.equals("NEW_ITEM")){
                     AuctionServer.broadcast("Refresh");
                 }
             }
         } catch (IOException e) {
-            // Lỗi này xảy ra khi Client tắt đột ngột (nhấn X, mất mạng)
             System.out.println("Client mất kết nối");
         }
         /*
@@ -77,21 +105,38 @@ public class ClientHandler implements Runnable {
         finally {
             try {
                 AuctionServer.removeClient(this);
-                socket.close();
-                in.close();
-                out.close();
+                if (in != null) in.close();
+                if (out != null) out.close();
+                if (socket != null && !socket.isClosed()) socket.close();
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
     }
 
-    //    Gửi tin nhắn
+    // Gửi tin nhắn
     public void sendMessage(String msg) {
         System.out.println("handler:" + msg);
-        if (out != null && !socket.isClosed()) {
+        if (out != null && socket != null && !socket.isClosed()) {
             out.println(msg);
             out.flush();
+        }
+    }
+
+    // Hàm phụ trợ bóc tách số double an toàn, ép sử dụng dấu chấm thập phân theo chuẩn quốc tế
+    private double parseDoubleSafe(String value) {
+        try {
+            // Sử dụng java.util.Scanner với Locale.US để ép dấu chấm làm dấu thập phân cố định
+            try (java.util.Scanner scanner = new java.util.Scanner(value)) {
+                scanner.useLocale(java.util.Locale.US);
+                if (scanner.hasNextDouble()) {
+                    return scanner.nextDouble();
+                }
+            }
+            // Fallback nếu scanner lỗi
+            return Double.parseDouble(value.replace(",", "."));
+        } catch (Exception e) {
+            return Double.parseDouble(value);
         }
     }
 }

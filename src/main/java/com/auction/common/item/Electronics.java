@@ -8,10 +8,11 @@ public class Electronics extends Item {
     private String warranty;
     private String state;
 
-    public Electronics(int id, String name, String description, double startPrice, double binPrice, double step,
-                       String sellerName, Timestamp endTime, String status,
+    // ĐÃ SỬA: Thêm double currentPrice vào constructor và super()
+    public Electronics(int id, String name, String description, double startPrice, double winPrice, double binPrice, double currentPrice, double step,
+                       String sellerName, Timestamp endTime, String status, String paymentStatus,
                        String brand, String warranty, String state) {
-        super(id, name, description, startPrice, binPrice, step, sellerName, "ELECTRONICS", endTime, status);
+        super(id, name, description, startPrice, binPrice, currentPrice, winPrice, step, sellerName,  "ELECTRONICS", endTime, status, paymentStatus);
         this.brand = brand;
         this.warranty = warranty;
         this.state = state;

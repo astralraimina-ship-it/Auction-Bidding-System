@@ -8,9 +8,10 @@ public class Art extends Item {
     private String medium;
     private String state;
 
-    public Art(int id, String name, String description, double startPrice, double binPrice, double step,
-               String sellerName, Timestamp endTime, String status, String artist, String medium, String state) {
-        super(id, name, description, startPrice, binPrice, step, sellerName, "ART", endTime, status);
+    // ĐÃ SỬA: Thêm double currentPrice vào constructor và super()
+    public Art(int id, String name, String description, double startPrice, double binPrice, double currentPrice, double step,
+               String sellerName, Timestamp endTime, String status, String paymentStatus, String artist, String medium, String state, double winPrice) {
+        super(id, name, description, startPrice, binPrice, currentPrice, winPrice, step, sellerName, "ART", endTime, status, paymentStatus);
         this.artist = artist;
         this.medium = medium;
         this.state = state;

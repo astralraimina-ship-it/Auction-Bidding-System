@@ -13,7 +13,6 @@
 
                 <HBox spacing="25.0" VBox.vgrow="ALWAYS">
                     <children>
-                        <!-- Cột trái: Thông tin & Đặt giá -->
                         <VBox prefWidth="400.0" spacing="15.0" style="-fx-background-color: white; -fx-padding: 20; -fx-background-radius: 10; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 0);">
                             <children>
                                 <Label fx:id="lblCurrentPrice" text="GIÁ HIỆN TẠI: 0 VNĐ" textFill="#e74c3c">
@@ -24,14 +23,13 @@
                                 <Separator />
                                 <Label text="Nhập giá của bạn:" />
                                 <TextField fx:id="txtBidInput" prefHeight="45.0" promptText="0.0" />
-                                <Button maxWidth="Infinity" onAction="#handlePlaceBid" prefHeight="50.0" style="-fx-background-color: #27ae60;" text="ĐẶT GIÁ NGAY" textFill="white">
+                                <Button fx:id="btnPlaceBid" maxWidth="Infinity" onAction="#handlePlaceBid" prefHeight="50.0" style="-fx-background-color: #27ae60;" text="ĐẶT GIÁ NGAY" textFill="white">
                                     <font><Font name="System Bold" size="16.0" /></font>
                                 </Button>
                                 <Button fx:id="btnRefresh" maxWidth="Infinity" onAction="#manualRefresh" text="🔄 Làm mới dữ liệu" />
                             </children>
                         </VBox>
 
-                        <!-- Cột phải: Log hoạt động -->
                         <VBox HBox.hgrow="ALWAYS" spacing="10.0">
                             <children>
                                 <Label text="Nhật ký phòng đấu giá:">

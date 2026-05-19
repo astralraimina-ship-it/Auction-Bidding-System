@@ -183,9 +183,35 @@ public class AdminController {
         }
     }
 
+    // ĐÃ CHỈNH SỬA: Luôn đồng bộ dùng chữ "BLOCKED" (bỏ hẳn banned)
     @FXML private void handleBlockUser() {
         User selected = tableUsers.getSelectionModel().getSelectedItem();
-        if (selected != null && adminDAO.updateUserStatus(selected.getUsername(), "BLOCKED")) refreshData();
+        if (selected == null) {
+            showAlert("Thông báo", "Vui lòng chọn người dùng muốn khóa!");
+            return;
+        }
+        if (adminDAO.updateUserStatus(selected.getUsername(), "BLOCKED")) {
+            refreshData();
+        }
+    }
+
+    // CHỨC NĂNG MỚI THÊM: Mở khóa tài khoản (Chuyển trạng thái từ BLOCKED về APPROVED)
+    @FXML
+    private void handleUnblockUser() {
+        User selected = tableUsers.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            showAlert("Thông báo", "Vui lòng chọn người dùng muốn mở khóa!");
+            return;
+        }
+
+        // Chỉ mở khóa khi tài khoản thực sự đang bị BLOCKED
+        if ("BLOCKED".equals(selected.getStatus())) {
+            if (adminDAO.updateUserStatus(selected.getUsername(), "APPROVED")) {
+                refreshData();
+            }
+        } else {
+            showAlert("Thông báo", "Tài khoản này không bị khóa!");
+        }
     }
 
     private void showAlert(String title, String content) {

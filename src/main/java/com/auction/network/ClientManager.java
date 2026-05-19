@@ -35,7 +35,7 @@ public class ClientManager {
     private void connect() {
         try {
             // Đã sửa thông báo lỗi cho đúng với IP cấu hình thực tế
-            String host = "10.11.68.195";
+            String host = "26.196.202.201";
             socket = new Socket(host, AuctionServer.getPort());
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));

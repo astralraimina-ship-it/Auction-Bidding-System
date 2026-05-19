@@ -107,7 +107,7 @@ public class AdminDAO extends UserDAO {
         }
     }
 
-    // Thêm hàm cập nhật Role nếu Long muốn đổi quyền trực tiếp
+    // Thêm hàm cập nhật Role nếu muốn đổi quyền trực tiếp
     public boolean updateUserRole(String username, String newRole) {
         String sql = "UPDATE users SET role = ? WHERE username = ?";
         try (Connection conn = DBContext.getConnection();
