@@ -19,7 +19,7 @@ public class ClientManager {
         void onUpdateReceived(String signal);
     }
 
-    private UpdateListener listener;
+    private final java.util.List<UpdateListener> listeners = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     private ClientManager() {
         connect();
@@ -45,8 +45,15 @@ public class ClientManager {
         }
     }
 
-    public void setUpdateListener(UpdateListener listener) {
-        this.listener = listener;
+    public void addUpdateListener(UpdateListener listener) {
+        if (!listeners.contains(listener)) {
+            listeners.add(listener);
+        }
+    }
+
+    // Thêm hàm xóa khi tắt màn hình để tránh rác bộ nhớ
+    public void removeUpdateListener(UpdateListener listener) {
+        listeners.remove(listener);
     }
 
     public void startListening() {
@@ -71,7 +78,7 @@ public class ClientManager {
 
     private void handleSignal(String signal) {
         Platform.runLater(() -> {
-            if (listener != null) {
+            for (UpdateListener listener : listeners) {
                 listener.onUpdateReceived(signal);
             }
         });

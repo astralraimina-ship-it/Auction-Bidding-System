@@ -7,9 +7,10 @@ import com.auction.network.ClientManager;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.stage.Stage;
 import java.util.Optional;
 
-public class BidderAuctionRoomController {
+public class BidderAuctionRoomController implements ClientManager.UpdateListener {
     @FXML private Label lblProductName, lblCurrentPrice, lblStep, lblBinPrice;
     @FXML private TextField txtBidInput;
     @FXML private TextArea txtAreaLog;
@@ -20,7 +21,6 @@ public class BidderAuctionRoomController {
     private final ItemDAO itemDAO = new ItemDAO();
     private final Object lock = new Object();
 
-    // ID người dùng thực tế sẽ được truyền vào qua hàm setUserId
     private int currentUserId;
 
     /**
@@ -32,32 +32,45 @@ public class BidderAuctionRoomController {
         lblStep.setText("Bước giá tối thiểu: " + String.format("%,.0f", item.getStep()) + " VNĐ");
         lblBinPrice.setText("Giá mua đứt: " + String.format("%,.0f", item.getBinPrice()) + " VNĐ");
         manualRefresh();
-        ClientManager.getInstance().setUpdateListener(signal -> {
-            if (signal.equals("Refresh")){
-                manualRefresh();
-            } else if (signal.equals("AntiSnipe")){
-                handleAntiSnipe(currentItem);
-            }else if (signal.equals("Closed")) {
-                logAction("Hệ thống: Phiên đấu giá đã kết thúc.");
 
+        // ĐĂNG KÝ LISTENER AN TOÀN (Dùng 'this' vì class đã implement UpdateListener)
+        ClientManager.getInstance().addUpdateListener(this);
+    }
+
+    /**
+     * Triển khai hàm onUpdateReceived từ interface UpdateListener
+     * Tất cả các tín hiệu real-time tự động đổ về đây và xử lý an toàn trong Platform.runLater
+     */
+    @Override
+    public void onUpdateReceived(String signal) {
+        Platform.runLater(() -> {
+            // Sử dụng equalsIgnoreCase để loại bỏ hoàn toàn lỗi lệch chữ HOA / chữ thường
+            if (signal.equalsIgnoreCase("REFRESH")) {
+                manualRefresh();
+            }
+            else if (signal.equalsIgnoreCase("AntiSnipe")) {
+                handleAntiSnipe(currentItem);
+            }
+            else if (signal.equalsIgnoreCase("Closed")) {
+                logAction("Hệ thống: Phiên đấu giá đã kết thúc.");
                 txtBidInput.setDisable(true);
                 btnPlaceBid.setDisable(true);
                 manualRefresh();
-            } else if (signal.startsWith("Notify;")){
+            }
+            else if (signal.startsWith("Notify;")) {
                 logAction(signal.substring(7));
             }
-            else if (signal.startsWith("Error;")){
+            else if (signal.startsWith("Error;")) {
                 showError(signal.substring(6));
             }
         });
     }
 
     /**
-     * Nhận ID người dùng từ Dashboard
+     * Nhận ID và Username của người dùng từ Dashboard
      */
     public void setUserId(int id) {
         this.currentUserId = id;
-        logAction("Hệ thống: Đã xác thực người dùng ID #" + id);
     }
 
     @FXML
@@ -73,7 +86,6 @@ public class BidderAuctionRoomController {
 
     private void processBidLogic(double bidAmount) {
         synchronized (lock) {
-            // --- CHỐT CHẶN THỜI GIAN (100% CẤM BID KHI HẾT GIỜ) ---
             long currentTime = System.currentTimeMillis();
             long endTime = currentItem.getEndTime().getTime();
 
@@ -86,13 +98,11 @@ public class BidderAuctionRoomController {
 
             double currentMax = bidDAO.getCurrentMaxBid(currentItem.getId(), currentItem.getStartPrice());
 
-            // Kiểm tra ngưỡng mua đứt
             if (bidAmount >= currentItem.getBinPrice()) {
                 handleBinConfirmation();
                 return;
             }
 
-            // Kiểm tra bước giá
             if (bidAmount < (currentMax + currentItem.getStep())) {
                 showError("Giá đặt phải cao hơn " + String.format("%,.0f", (currentMax + currentItem.getStep())) + " VNĐ");
                 return;
@@ -119,7 +129,6 @@ public class BidderAuctionRoomController {
 
         long timeLeft = item.getEndTime().getTime() - System.currentTimeMillis();
 
-        // Nếu còn dưới 1 phút, tự động gia hạn thêm 2 phút
         if (timeLeft > 0 && timeLeft < 60000) {
             int minutesToExtend = 2;
             boolean success = itemDAO.extendAuctionTime(item.getId(), minutesToExtend);

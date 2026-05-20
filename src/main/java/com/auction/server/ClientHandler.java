@@ -43,7 +43,7 @@ public class ClientHandler implements Runnable {
                     boolean success = bidDAO.placeBid(itemId, userId, bidAmount);
                     if (success){
                         this.sendMessage("Notify;BẠN đã đặt giá thành công: " + String.format("%,.0f", bidAmount) + " VNĐ");
-                        AuctionServer.broadcast("Refresh");
+                        AuctionServer.broadcast("REFRESH");
                         AuctionServer.broadcast("AntiSnipe");
                     }
                     else{
@@ -85,13 +85,20 @@ public class ClientHandler implements Runnable {
                         // Gửi mã chính xác để Client chặn xử lý luồng hiển thị Alert
                         this.sendMessage("PAY_SUCCESS");
                         // Đồng bộ làm mới bảng của mọi Client khác đang mở app
-                        AuctionServer.broadcast("Refresh");
+                        AuctionServer.broadcast("REFRESH");
                     } else {
                         this.sendMessage("PAY_FAILED;Số dư ví không đủ hoặc đơn hàng đã xử lý trước đó!");
                     }
+                } else if (request.startsWith("USER_UPDATED")) {
+                    String[] part = request.split(";");
+                    String id = part[1];
+                    String status = part[2];
+                    AuctionServer.broadcast("REFRESH");
+                } else if (request.equals("NEW_ITEM")){
+                    AuctionServer.broadcast("REFRESH");
                 }
-                else if (request.equals("NEW_ITEM")){
-                    AuctionServer.broadcast("Refresh");
+                else if (request.equals("TRANSACTION_UPDATED")){
+                    AuctionServer.broadcast("REFRESH");
                 }
             }
         } catch (IOException e) {

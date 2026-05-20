@@ -23,7 +23,7 @@ public class AuctionServer {
                     // 1. Tự động kiểm tra đóng các phiên hết hạn (Chạy liên tục mỗi 10 giây)
                     boolean hasExpired = itemDAO.checkAndCloseExpiredItems();
                     if (hasExpired) {
-                        AuctionServer.broadcast("Refresh");
+                        AuctionServer.broadcast("REFRESH");
                     }
 
                     // 2. Tự động kiểm tra phạt bùng hàng 24h (Cứ mỗi 30 chu kỳ = 300 giây = 5 phút quét 1 lần)

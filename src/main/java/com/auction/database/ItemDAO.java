@@ -135,13 +135,14 @@ public class ItemDAO {
     }
 
     public static void processExpiredPayments() {
-        String getExpiredSQL = "SELECT id, winner_id FROM items WHERE end_time < NOW() - INTERVAL 1 DAY AND payment_status = 'PENDING' AND status = 'CLOSED'";
+        String getExpiredSQL = "SELECT id, winner_id FROM items WHERE end_time < ? - INTERVAL 1 DAY AND payment_status = 'PENDING' AND status = 'CLOSED'";
         try (Connection conn = DBContext.getConnection()) {
             conn.setAutoCommit(false);
             try (PreparedStatement stmtGet = conn.prepareStatement(getExpiredSQL);
                  PreparedStatement stmtItem = conn.prepareStatement("UPDATE items SET payment_status = 'EXPIRED' WHERE id = ?");
                  PreparedStatement stmtUser = conn.prepareStatement("UPDATE users SET cancel_count = cancel_count + 1 WHERE id = ?");
                  PreparedStatement stmtBan = conn.prepareStatement("UPDATE users SET status = 'BLOCKED' WHERE id = ? AND cancel_count >= 3")) {
+                stmtGet.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
                 try (ResultSet rs = stmtGet.executeQuery()) {
                     while (rs.next()) {
                         int itemId = rs.getInt("id"); int winnerId = rs.getInt("winner_id");

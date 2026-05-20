@@ -22,7 +22,7 @@ import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
-public class SellerController {
+public class SellerController implements ClientManager.UpdateListener {
     @FXML private Label lblBalance;
     @FXML private TableView<Item> tableItems;
     @FXML private TableColumn<Item, String> colName, colCategory, colDetails;
@@ -39,11 +39,14 @@ public class SellerController {
     public void initialize() {
         setupColumns();
         setupTimeLeftColumn();
-        ClientManager.getInstance().setUpdateListener(signal -> {
-            if (signal.equals("Refresh")){
-                refreshAll();
-            }
-        });
+        ClientManager.getInstance().addUpdateListener(this);
+    }
+
+    @Override
+    public void onUpdateReceived(String signal) {
+        if (signal.equals("REFRESH")){
+            refreshAll();
+        }
     }
 
     private void setupColumns() {
@@ -164,6 +167,7 @@ public class SellerController {
     @FXML
     private void handleLogout() {
         if (tableItems != null && tableItems.getScene() != null) {
+            ClientManager.getInstance().removeUpdateListener(this);
             Stage stage = (Stage) tableItems.getScene().getWindow();
             NavigationService.navigate(stage, "/com/auction/ui/login.fxml", "UET Auction - Đăng nhập");
         }

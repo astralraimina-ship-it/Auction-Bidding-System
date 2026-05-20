@@ -21,7 +21,7 @@ import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
-public class BidderController {
+public class BidderController implements ClientManager.UpdateListener {
     // Các cột cho bảng Sàn đấu giá (Đang mở)
     @FXML private TableView<Item> tableItems;
     @FXML private TableColumn<Item, String> colName, colCategory, colDetails, colSeller;
@@ -49,21 +49,25 @@ public class BidderController {
         setupRowFactory();
 
         // ĐÃ SỬA: Lắng nghe và bóc tách các phản hồi PAY_SUCCESS / PAY_FAILED từ Server
-        ClientManager.getInstance().setUpdateListener(signal -> {
-            Platform.runLater(() -> {
-                if (signal.equals("Refresh")){
-                    refreshAll();
-                }
-                else if (signal.equals("PAY_SUCCESS")) {
-                    showSimpleAlert("Thành công", "Chúc mừng! Bạn đã hoàn tất thanh toán đơn hàng thành công.", Alert.AlertType.INFORMATION);
-                    refreshAll(); // Tự động load lại số dư và ẩn item đã mua
-                }
-                else if (signal.startsWith("PAY_FAILED")) {
-                    String[] parts = signal.split(";");
-                    String reason = parts.length > 1 ? parts[1] : "Lỗi xử lý giao dịch hoặc tài khoản không đủ tiền.";
-                    showSimpleAlert("Thanh toán thất bại", reason, Alert.AlertType.ERROR);
-                }
-            });
+        ClientManager.getInstance().addUpdateListener(this);
+
+    }
+    @Override
+    public void onUpdateReceived(String signal) {
+        Platform.runLater(() -> {
+            if (signal.equals("REFRESH")){
+                System.out.println(1);
+                refreshAll();
+            }
+            else if (signal.equals("PAY_SUCCESS")) {
+                showSimpleAlert("Thành công", "Chúc mừng! Bạn đã hoàn tất thanh toán đơn hàng thành công.", Alert.AlertType.INFORMATION);
+                refreshAll(); // Tự động load lại số dư và ẩn item đã mua
+            }
+            else if (signal.startsWith("PAY_FAILED")) {
+                String[] parts = signal.split(";");
+                String reason = parts.length > 1 ? parts[1] : "Lỗi xử lý giao dịch hoặc tài khoản không đủ tiền.";
+                showSimpleAlert("Thanh toán thất bại", reason, Alert.AlertType.ERROR);
+            }
         });
     }
 
@@ -186,6 +190,12 @@ public class BidderController {
             stage.setTitle("Phòng đấu giá: " + item.getName());
             stage.setScene(new Scene(root));
             stage.initModality(Modality.APPLICATION_MODAL);
+            stage.setOnCloseRequest(event -> {
+                System.out.println(">>> Đóng phòng đấu giá, hủy đăng ký Listener.");
+                // controller ở đây chính là thực thể implement UpdateListener
+                // (Hãy chắc chắn rằng BidderAuctionRoomController đã có một biến Listener hoặc bản thân nó chính là Listener)
+                ClientManager.getInstance().removeUpdateListener(controller);
+            });
             stage.showAndWait();
 
             refreshAll();
@@ -291,6 +301,7 @@ public class BidderController {
     @FXML
     private void handleLogout() {
         if (lblBalance != null && lblBalance.getScene() != null) {
+            ClientManager.getInstance().removeUpdateListener(this);
             Stage stage = (Stage) lblBalance.getScene().getWindow();
             NavigationService.navigate(stage, "/com/auction/ui/login.fxml", "UET Auction - Đăng nhập");
         }

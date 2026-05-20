@@ -14,7 +14,7 @@ import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.stage.Stage;
 
-public class AdminController {
+public class AdminController implements ClientManager.UpdateListener {
     @FXML private Label lblBalance;
 
     // --- Bảng Người dùng ---
@@ -42,11 +42,14 @@ public class AdminController {
     public void initialize() {
         setupColumns();
         refreshData(); // Tự động load lần đầu
-        ClientManager.getInstance().setUpdateListener(signal -> {
-            if (signal.equals("Refresh")){
-                refreshData();
-            }
-        });
+        ClientManager.getInstance().addUpdateListener(this);
+    }
+
+    @Override
+    public void onUpdateReceived(String signal) {
+        if (signal.equals("REFRESH")){
+            refreshData();
+        }
     }
 
     // Hàm Refresh dùng chung cho cả 3 bảng, chạy ngầm để không treo App
@@ -166,12 +169,17 @@ public class AdminController {
 
     @FXML private void handleApproveTrans() {
         Transaction s = tableTransactions.getSelectionModel().getSelectedItem();
-        if (s != null && adminDAO.approveTransaction(s)) refreshData();
+        if (s != null && adminDAO.approveTransaction(s)){
+            ClientManager.getInstance().sendCommand("TRANSACTION_UPDATED");
+        }
     }
 
-    @FXML private void handleRejectTrans() { refreshData(); }
+    @FXML private void handleRejectTrans() {
+        ClientManager.getInstance().sendCommand("TRANSACTION_UPDATED");
+    }
 
     @FXML private void handleLogout() {
+        ClientManager.getInstance().removeUpdateListener(this);
         Stage stage = (Stage) tableUsers.getScene().getWindow();
         NavigationService.navigate(stage, "/com/auction/ui/login.fxml", "UET Auction - Đăng nhập");
     }
@@ -179,7 +187,9 @@ public class AdminController {
     @FXML private void handleApproveUser() {
         User selected = tableUsers.getSelectionModel().getSelectedItem();
         if (selected != null && "PENDING".equals(selected.getStatus())) {
-            if (adminDAO.updateUserStatus(selected.getUsername(), "APPROVED")) refreshData();
+            if (adminDAO.updateUserStatus(selected.getUsername(), "APPROVED")){
+                ClientManager.getInstance().sendCommand("USER_UPDATED;" + selected.getId() + ";APPROVED");
+            };
         }
     }
 
@@ -191,6 +201,7 @@ public class AdminController {
             return;
         }
         if (adminDAO.updateUserStatus(selected.getUsername(), "BLOCKED")) {
+            ClientManager.getInstance().sendCommand("USER_UPDATED;" + selected.getId() + ";BLOCKED");
             refreshData();
         }
     }
@@ -207,6 +218,7 @@ public class AdminController {
         // Chỉ mở khóa khi tài khoản thực sự đang bị BLOCKED
         if ("BLOCKED".equals(selected.getStatus())) {
             if (adminDAO.updateUserStatus(selected.getUsername(), "APPROVED")) {
+                ClientManager.getInstance().sendCommand("USER_UPDATED;" + selected.getId() + ";APPROVED");
                 refreshData();
             }
         } else {
