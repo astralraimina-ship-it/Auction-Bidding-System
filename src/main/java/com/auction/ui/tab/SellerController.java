@@ -28,6 +28,7 @@ public class SellerController implements ClientManager.UpdateListener {
     @FXML private TableColumn<Item, String> colName, colCategory, colDetails;
     @FXML private TableColumn<Item, Double> colStartPrice, colBinPrice;
     @FXML private TableColumn<Item, Timestamp> colTimeLeft;
+    @FXML private TableColumn<Item, String> colPayStatus;
     @FXML private Button btnRefresh; // Nút làm mới mới thêm
 
     private SellerDAO sellerDAO = new SellerDAO();
@@ -39,6 +40,7 @@ public class SellerController implements ClientManager.UpdateListener {
     public void initialize() {
         setupColumns();
         setupTimeLeftColumn();
+        setupPaymentStatusColumn();
         ClientManager.getInstance().addUpdateListener(this);
     }
 
@@ -82,6 +84,51 @@ public class SellerController implements ClientManager.UpdateListener {
                                 setText(String.format("%02d giờ %02d phút", d.toHoursPart(), d.toMinutesPart()));
                             }
                             setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold;");
+                        }
+                    }
+                }
+            });
+        }
+    }
+    private void setupPaymentStatusColumn() {
+        if (colPayStatus != null) {
+            colPayStatus.setCellFactory(column -> new TableCell<Item, String>() {
+                @Override
+                protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+
+                    if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                        setText(null);
+                        setStyle("");
+                    } else {
+                        Item currentItem = getTableRow().getItem();
+                        String status = currentItem.getStatus();
+                        String paymentStatus = currentItem.getPaymentStatus();// Lấy trạng thái gốc từ Database (OPEN, WON, PAID...)
+
+                        // 1. Nếu sản phẩm đang mở đấu giá hoặc không có mốc thời gian kết thúc
+                        if ("OPEN".equalsIgnoreCase(status) || currentItem.getEndTime() == null) {
+                            setText("—");
+                            setStyle("-fx-text-fill: #7f8c8d; -fx-alignment: CENTER;");
+                            return;
+                        }
+
+                        // 2. Nếu Database đã cập nhật trạng thái đã thanh toán thành công (PAID)
+                        if ("PAID".equalsIgnoreCase(paymentStatus)) {
+                            setText("Đã thanh toán");
+                            setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold; -fx-alignment: CENTER;");
+                            return;
+                        }
+
+                        // 3. Nếu phiên đấu giá đã đóng (CLOSED hoặc WON) nhưng trạng thái chưa là PAID -> Tính toán thời hạn 24 giờ
+                        if ("EXPIRED".equalsIgnoreCase(paymentStatus)) {
+                            // Đã quá hạn 24h kể từ khi kết thúc đấu giá mà trạng thái vẫn chưa chuyển sang PAID
+                            setText("Bị hủy");
+                            setStyle("-fx-text-fill: #e74c3c; -fx-font-weight: bold; -fx-alignment: CENTER;");
+                        }
+                        if ("PENDING".equalsIgnoreCase(paymentStatus)){
+                            // Chưa quá thời hạn 24h và đang chờ người thắng cuộc thanh toán tiền
+                            setText("Chưa thanh toán");
+                            setStyle("-fx-text-fill: #e67e22; -fx-font-weight: bold; -fx-alignment: CENTER;");
                         }
                     }
                 }

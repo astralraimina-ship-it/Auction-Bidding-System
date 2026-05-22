@@ -56,7 +56,6 @@ public class BidderController implements ClientManager.UpdateListener {
     public void onUpdateReceived(String signal) {
         Platform.runLater(() -> {
             if (signal.equals("REFRESH")){
-                System.out.println(1);
                 refreshAll();
             }
             else if (signal.equals("PAY_SUCCESS")) {
