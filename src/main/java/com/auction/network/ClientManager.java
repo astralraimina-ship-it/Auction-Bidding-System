@@ -2,11 +2,14 @@ package com.auction.network;
 
 import com.auction.server.AuctionServer;
 import javafx.application.Platform;
+import javafx.scene.control.Alert;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.net.UnknownHostException;
 
 public class ClientManager {
     private static ClientManager instance;
@@ -40,11 +43,28 @@ public class ClientManager {
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             System.out.println("Kết nối đến Server thành công!");
-        } catch (IOException e) {
+        } catch (UnknownHostException e){
+            showNetworkError("Không tìm thấy địa chỉ máy chủ. Vui lòng kiểm tra lại cấu hình IP!");
+        }
+        catch (IOException e) {
             System.err.println("Lỗi: Không thể kết nối đến server tại 26.196.202.201:" + AuctionServer.getPort());
         }
     }
 
+    // Hàm tiện ích hiển thị thông báo lỗi lên màn hình JavaFX
+    private void showNetworkError(String message) {
+        // Bắt buộc dùng Platform.runLater nếu hàm này chạy trong một Thread khác Thread chính của JavaFX
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Lỗi Kết Nối");
+            alert.setHeaderText("Mất kết nối mạng!");
+            alert.setContentText(message);
+            alert.showAndWait();
+
+            // Tùy chọn: Tự động đóng ứng dụng hoặc bắt quay về màn hình đăng nhập công cụ
+            // System.exit(0);
+        });
+    }
     public void addUpdateListener(UpdateListener listener) {
         if (!listeners.contains(listener)) {
             listeners.add(listener);
@@ -68,6 +88,16 @@ public class ClientManager {
                 }
             } catch (IOException e) {
                 System.err.println("Mất kết nối với Server hoặc Socket đã đóng.");
+                Platform.runLater(() -> {
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    alert.setTitle("Cảnh Báo Mạng");
+                    alert.setHeaderText("Kết nối mạng bị gián đoạn!");
+                    alert.setContentText("Mất kết nối đến server, vui lòng kiểm tra lại đường truyền internet của bạn!");
+                    alert.showAndWait();
+
+                    // Hướng xử lý sau khi bấm OK:
+                    // Khóa các nút "Đặt giá ngay" để họ không bấm được nữa, hoặc đẩy họ ra màn hình danh sách sản phẩm.
+                });
             } finally {
                 closeConnection();
             }

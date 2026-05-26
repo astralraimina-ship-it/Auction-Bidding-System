@@ -39,18 +39,28 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
         // ĐĂNG KÝ LISTENER AN TOÀN (Dùng 'this' vì class đã implement UpdateListener)
         ClientManager.getInstance().addUpdateListener(this);
     }
-    public void loadHistoryFromDatabase() {
+    // Trong file BidderAuctionRoomController.java
+
+    private void loadHistoryFromDatabase() {
         if (currentItem == null) return;
 
-        // Lấy danh sách lịch sử từ DB
-        List<String> logs = bidDAO.getBidHistoryText(currentItem.getId());
+        // BỌC ĐOẠN CODE TRY-CATCH CỦA BẠN VÀO ĐÂY
+        try {
+            // Gọi xuống DB trên Aiven để lấy danh sách chuỗi lịch sử
+            List<String> logs = bidDAO.getBidHistoryText(currentItem.getId());
 
-        // Xóa trắng dữ liệu cũ trên giao diện trước khi nạp mới
-        txtAreaLog.clear();
+            // Nếu kết nối mượt mà không lỗi, tiến hành xóa trắng dữ liệu cũ và nạp mới lên UI
+            txtAreaLog.clear();
+            for (String log : logs) {
+                txtAreaLog.appendText(log + "\n");
+            }
 
-        // Nạp dữ liệu vào ô Nhật ký
-        for (String log : logs) {
-            txtAreaLog.appendText(log + "\n");
+        } catch (Exception e) {
+            // Nếu mạng của máy Client bị rớt, không gọi được tới host của Aiven, nó sẽ rơi vào đây:
+            showError("Không thể tải dữ liệu từ cơ sở dữ liệu Cloud. Vui lòng kiểm tra kết nối Internet!");
+
+            // (Tùy chọn) Bạn có thể in ra lỗi chi tiết ở Console để lập trình viên dễ debug:
+            e.printStackTrace();
         }
     }
     /**
