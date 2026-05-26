@@ -53,6 +53,7 @@ public class ClientHandler implements Runnable, BidObserver {
                         BidPublisher.getInstance().notifyObservers();
 
                         // Giữ nguyên cơ chế tín hiệu đặc biệt khác nếu có
+                        AuctionServer.broadcast("Notify;" + userId + " đã đặt giá " + bidAmount);
                         AuctionServer.broadcast("AntiSnipe");
                     }
                     else{
