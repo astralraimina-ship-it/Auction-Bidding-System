@@ -39,7 +39,7 @@ public class ClientManager {
         try {
             // Đã sửa thông báo lỗi cho đúng với IP cấu hình thực tế
             String host = "26.196.202.201";
-            socket = new Socket("localhost", AuctionServer.getPort());
+            socket = new Socket(host, AuctionServer.getPort());
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             System.out.println("Kết nối đến Server thành công!");
