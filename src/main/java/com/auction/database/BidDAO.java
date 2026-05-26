@@ -79,7 +79,7 @@ public class BidDAO {
                 ps.setInt(1, itemId);
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) {
-                        int bidderId = rs.getInt("bidder_id");
+                        int bidderId = rs.getInt("user_id");
                         double bidAmount = rs.getDouble("bid_amount");
 
                         // Định dạng chuỗi hiển thị theo ý bạn
