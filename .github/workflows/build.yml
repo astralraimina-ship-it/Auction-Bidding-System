@@ -1,0 +1,27 @@
+name: Java CI with Maven
+
+# Action này sẽ tự động chạy khi có code push hoặc Pull Request vào nhánh main/master
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest # Chạy trên máy ảo Ubuntu của GitHub
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21' # Thay đổi số này cho khớp với phiên bản Java bạn đang dùng (17, 21, v.v.)
+          distribution: 'temurin'
+          cache: maven # Tự động cache các thư viện để build nhanh hơn ở các lần sau
+
+      - name: Build Project with Maven
+        # Tạm thời thêm -DskipTests để CI không bị fail nếu bạn chưa viết Unit Test
+        run: mvn clean package -DskipTests

@@ -74,7 +74,7 @@ public class ClientHandler implements Runnable {
                     int userId = Integer.parseInt(part[2]);
 
                     // ĐÃ SỬA CHÍ MẠNG: Ép Server bóc tách số tiền theo định dạng chuẩn US (dấu chấm thập phân)
-                    double amount = parseDoubleSafe(part[3]);
+                    double amount = com.auction.util.FormatUtils.parseDoubleSafe(part[3]);
 
                     System.out.println(">>> [SERVER XỬ LÝ PAY] ItemID: " + itemId + " | UserID: " + userId + " | Số tiền nhận: " + amount);
 
