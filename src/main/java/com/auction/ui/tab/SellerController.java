@@ -172,8 +172,14 @@ public class SellerController implements ClientManager.UpdateListener {
         }).start();
     }
 
-    @FXML private void handleOpenDeposit() { openTransactionWindow("DEPOSIT"); }
-    @FXML private void handleOpenWithdraw() { openTransactionWindow("WITHDRAW"); }
+    @FXML private void handleOpenDeposit() {
+        openTransactionWindow("DEPOSIT");
+        ClientManager.getInstance().sendCommand("UPDATE");
+    }
+    @FXML private void handleOpenWithdraw() {
+        openTransactionWindow("WITHDRAW");
+        ClientManager.getInstance().sendCommand("UPDATE");
+    }
 
     private void openTransactionWindow(String mode) {
         try {

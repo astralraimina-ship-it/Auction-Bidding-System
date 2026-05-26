@@ -110,8 +110,14 @@ public class ClientHandler implements Runnable, BidObserver {
                     // ĐÃ NÂNG CẤP: Dùng Observer Pattern thông báo có món đồ mới được đăng bán
                     BidPublisher.getInstance().notifyObservers();
                 }
+                else if (request.equals("NEW_USER")){
+                    BidPublisher.getInstance().notifyObservers();
+                }
                 else if (request.equals("TRANSACTION_UPDATED")){
                     // ĐÃ NÂNG CẤP: Dùng Observer Pattern thông báo có giao dịch mới vừa hoàn thành
+                    BidPublisher.getInstance().notifyObservers();
+                }
+                else if (request.equals("UPDATE")){
                     BidPublisher.getInstance().notifyObservers();
                 }
             }

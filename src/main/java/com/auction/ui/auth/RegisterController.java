@@ -1,6 +1,7 @@
 package com.auction.ui.auth;
 
 import com.auction.database.UserDAO;
+import com.auction.network.ClientManager;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -29,6 +30,7 @@ public class RegisterController {
         }
 
         if (userDAO.register(user, pass, role)) {
+            ClientManager.getInstance().sendCommand("NEW_USER");
             String msg = role.equals("ADMIN") ? "Đăng ký thành công! Chờ Admin khác duyệt." : "Đăng ký thành công!";
             showMsg("Thông báo", msg);
         } else {

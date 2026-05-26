@@ -41,7 +41,7 @@ public class ClientManager {
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             System.out.println("Kết nối đến Server thành công!");
         } catch (IOException e) {
-            System.err.println("Lỗi: Không thể kết nối đến server tại 10.11.68.195:" + AuctionServer.getPort());
+            System.err.println("Lỗi: Không thể kết nối đến server tại 26.196.202.201:" + AuctionServer.getPort());
         }
     }
 
