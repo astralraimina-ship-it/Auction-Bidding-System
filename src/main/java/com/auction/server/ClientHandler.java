@@ -9,8 +9,11 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import com.auction.server.observer.BidObserver;
+import com.auction.server.observer.BidPublisher;
 
-public class ClientHandler implements Runnable {
+// ĐÃ SỬA: Thực thi giao diện BidObserver để biến Class này thành một "Người nghe đài"
+public class ClientHandler implements Runnable, BidObserver {
     private Socket socket;
     private BufferedReader in;
     private PrintWriter out;
@@ -20,6 +23,8 @@ public class ClientHandler implements Runnable {
 
     ClientHandler(Socket _socket) {
         socket = _socket;
+        // THÊM ĐỒNG BỘ: Tự động đăng ký luồng Client này vào Trạm phát sóng trung tâm khi kết nối thành công
+        BidPublisher.getInstance().registerObserver(this);
     }
 
     @Override
@@ -43,7 +48,11 @@ public class ClientHandler implements Runnable {
                     boolean success = bidDAO.placeBid(itemId, userId, bidAmount);
                     if (success){
                         this.sendMessage("Notify;BẠN đã đặt giá thành công: " + String.format("%,.0f", bidAmount) + " VNĐ");
-                        AuctionServer.broadcast("REFRESH");
+
+                        // ĐÃ NÂNG CẤP: Sử dụng Observer Pattern thay thế cho hàm broadcast cũ để cập nhật UI Realtime
+                        BidPublisher.getInstance().notifyObservers();
+
+                        // Giữ nguyên cơ chế tín hiệu đặc biệt khác nếu có
                         AuctionServer.broadcast("AntiSnipe");
                     }
                     else{
@@ -84,8 +93,9 @@ public class ClientHandler implements Runnable {
                     if (success) {
                         // Gửi mã chính xác để Client chặn xử lý luồng hiển thị Alert
                         this.sendMessage("PAY_SUCCESS");
-                        // Đồng bộ làm mới bảng của mọi Client khác đang mở app
-                        AuctionServer.broadcast("REFRESH");
+
+                        // ĐÃ NÂNG CẤP: Sử dụng Observer Pattern để yêu cầu tất cả các máy làm mới bảng dữ liệu
+                        BidPublisher.getInstance().notifyObservers();
                     } else {
                         this.sendMessage("PAY_FAILED;Số dư ví không đủ hoặc đơn hàng đã xử lý trước đó!");
                     }
@@ -93,12 +103,16 @@ public class ClientHandler implements Runnable {
                     String[] part = request.split(";");
                     String id = part[1];
                     String status = part[2];
-                    AuctionServer.broadcast("REFRESH");
+
+                    // ĐÃ NÂNG CẤP: Dùng Observer Pattern thông báo cập nhật dữ liệu người dùng
+                    BidPublisher.getInstance().notifyObservers();
                 } else if (request.equals("NEW_ITEM")){
-                    AuctionServer.broadcast("REFRESH");
+                    // ĐÃ NÂNG CẤP: Dùng Observer Pattern thông báo có món đồ mới được đăng bán
+                    BidPublisher.getInstance().notifyObservers();
                 }
                 else if (request.equals("TRANSACTION_UPDATED")){
-                    AuctionServer.broadcast("REFRESH");
+                    // ĐÃ NÂNG CẤP: Dùng Observer Pattern thông báo có giao dịch mới vừa hoàn thành
+                    BidPublisher.getInstance().notifyObservers();
                 }
             }
         } catch (IOException e) {
@@ -111,6 +125,9 @@ public class ClientHandler implements Runnable {
          */
         finally {
             try {
+                // THÊM ĐỒNG BỘ: Hủy đăng ký khỏi Trạm phát sóng khi Client thoát ứng dụng để tránh rò rỉ bộ nhớ
+                BidPublisher.getInstance().removeObserver(this);
+
                 AuctionServer.removeClient(this);
                 if (in != null) in.close();
                 if (out != null) out.close();
@@ -145,5 +162,12 @@ public class ClientHandler implements Runnable {
         } catch (Exception e) {
             return Double.parseDouble(value);
         }
+    }
+
+    // THÊM HÀM NÀY: Hàm bắt buộc triển khai của interface BidObserver
+    @Override
+    public void onNotificationReceived() {
+        // Khi Trạm phát sóng trung tâm hô "notify", gửi lệnh REFRESH viết hoa chuẩn giao thức cũ xuống Client
+        this.sendMessage("REFRESH");
     }
 }

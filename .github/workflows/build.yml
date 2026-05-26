@@ -23,5 +23,4 @@ jobs:
           cache: maven # Tự động cache các thư viện để build nhanh hơn ở các lần sau
 
       - name: Build Project with Maven
-        # Tạm thời thêm -DskipTests để CI không bị fail nếu bạn chưa viết Unit Test
-        run: mvn clean package -DskipTests
+        run: mvn clean package
