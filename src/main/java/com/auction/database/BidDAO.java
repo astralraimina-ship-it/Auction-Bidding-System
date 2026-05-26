@@ -1,5 +1,7 @@
 package com.auction.database;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class BidDAO {
 
@@ -66,5 +68,28 @@ public class BidDAO {
             }
         } catch (Exception e) { e.printStackTrace(); }
         return 0;
+    }
+    public List<String> getBidHistoryText(int itemId) {
+        List<String> historyList = new ArrayList<>();
+            // Sắp xếp bid_time ASC để lượt cũ ở trên, lượt mới nhất xuất hiện ở dưới cùng
+        String sql = "SELECT user_id, bid_amount FROM bids WHERE item_id = ? ORDER BY bid_time ASC";
+
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setInt(1, itemId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        int bidderId = rs.getInt("bidder_id");
+                        double bidAmount = rs.getDouble("bid_amount");
+
+                        // Định dạng chuỗi hiển thị theo ý bạn
+                        String logLine = "User ID " + bidderId + " đã đặt giá " + String.format("%,.0f", bidAmount) + " VNĐ";
+                        historyList.add(logLine);
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        return historyList;
     }
 }

@@ -8,6 +8,8 @@ import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.stage.Stage;
+
+import java.util.List;
 import java.util.Optional;
 
 public class BidderAuctionRoomController implements ClientManager.UpdateListener {
@@ -32,11 +34,25 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
         lblStep.setText("Bước giá tối thiểu: " + String.format("%,.0f", item.getStep()) + " VNĐ");
         lblBinPrice.setText("Giá mua đứt: " + String.format("%,.0f", item.getBinPrice()) + " VNĐ");
         manualRefresh();
+        loadHistoryFromDatabase();
 
         // ĐĂNG KÝ LISTENER AN TOÀN (Dùng 'this' vì class đã implement UpdateListener)
         ClientManager.getInstance().addUpdateListener(this);
     }
+    public void loadHistoryFromDatabase() {
+        if (currentItem == null) return;
 
+        // Lấy danh sách lịch sử từ DB
+        List<String> logs = bidDAO.getBidHistoryText(currentItem.getId());
+
+        // Xóa trắng dữ liệu cũ trên giao diện trước khi nạp mới
+        txtAreaLog.clear();
+
+        // Nạp dữ liệu vào ô Nhật ký
+        for (String log : logs) {
+            txtAreaLog.appendText(log + "\n");
+        }
+    }
     /**
      * Triển khai hàm onUpdateReceived từ interface UpdateListener
      * Tất cả các tín hiệu real-time tự động đổ về đây và xử lý an toàn trong Platform.runLater
@@ -59,6 +75,21 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
             }
             else if (signal.startsWith("Notify;")) {
                 logAction(signal.substring(7));
+            }
+            else if (signal.startsWith("BID_UPDATE")){
+                String[] parts = signal.split(";");
+                int updatedItemId = Integer.parseInt(parts[1]);
+                int bidderId = Integer.parseInt(parts[2]);
+                double amount = Double.parseDouble(parts[3]);
+                if (currentItem != null && currentItem.getId() == updatedItemId) {
+                    String newLog = "User ID " + bidderId + " đã đặt giá " + String.format("%,.0f", amount) + " VNĐ";
+
+                    // Cách 1: Thêm trực tiếp dòng chữ mới vào cuối TextArea (Mượt và không cần load lại cả DB)
+                    txtAreaLog.appendText(newLog + "\n");
+
+                    // Cách 2: Gọi lại hàm loadHistoryFromDatabase() nếu muốn đồng bộ tuyệt đối với DB
+                    loadHistoryFromDatabase();
+                }
             }
             else if (signal.startsWith("Error;")) {
                 showError(signal.substring(6));
