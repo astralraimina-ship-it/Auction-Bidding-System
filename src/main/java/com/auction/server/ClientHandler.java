@@ -35,8 +35,15 @@ public class ClientHandler implements Runnable, BidObserver {
             String request;
             // Vòng lặp lắng nghe lệnh từ Client
             while ((request = in.readLine()) != null) {
+
+                // 1. XỬ LÝ GÓI TIN KIỂM TRA MẠNG ẨN (PING): Im lặng bỏ qua, tránh crash cắt chuỗi dấu ;
+                if ("PING".equals(request)) {
+                    continue;
+                }
+
                 System.out.println(request);
-//                Sử dụng định dạng BID;itemId;userId;bidAmount
+
+                // 2. XỬ LÝ ĐẶT GIÁ THỦ CÔNG (BID)
                 if (request.startsWith("BID")) {
                     String[] part = request.split(";");
                     int itemId = Integer.parseInt(part[1]);
@@ -55,10 +62,30 @@ public class ClientHandler implements Runnable, BidObserver {
                         // Giữ nguyên cơ chế tín hiệu đặc biệt khác nếu có
                         AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + userId + ";" + bidAmount);
                         AuctionServer.broadcast("AntiSnipe");
+
+                        // ====================================================================
+                        // KÍCH HOẠT HỆ THỐNG AUTO-BID: Có người đặt giá mới -> Đánh thức Auto trả đòn!
+                        processAutoBidSystem(itemId);
+                        // ====================================================================
                     }
                     else{
                         this.sendMessage("Error;Đặt giá thất bại! Có thể phiên đấu giá đã đóng trên máy chủ.");
                     }
+                }
+                // 3. XỬ LÝ LỆNH CẤU HÌNH AUTO-BID TỪ CLIENT GỬI LÊN
+                else if (request.startsWith("SET_AUTOBID")) {
+                    String[] part = request.split(";");
+                    int itemId = Integer.parseInt(part[1]);
+                    int userId = Integer.parseInt(part[2]);
+                    double autoStep = parseDoubleSafe(part[3]);
+                    double stopPrice = parseDoubleSafe(part[4]);
+
+                    // ĐỒNG BỘ MỚI: Dùng Key kết hợp itemId-userId để không bị ghi đè khi nhiều người bật Auto cùng phòng
+                    String key = itemId + "-" + userId;
+                    AuctionServer.AutoBidConfig config = new AuctionServer.AutoBidConfig(itemId, userId, autoStep, stopPrice);
+                    AuctionServer.activeAutoBids.put(key, config);
+                    System.out.println(">>> [SERVER] Đã ghi nhận cấu hình AutoBid cho khóa: " + key);
+                    processAutoBidSystem(itemId);
                 }
                 else if (request.startsWith("BIN")){
                     String[] part = request.split(";");
@@ -74,6 +101,10 @@ public class ClientHandler implements Runnable, BidObserver {
                         if (updateSuccess){
                             this.sendMessage("Notify;CHÚC MỪNG! Bạn đã mua đứt thành công.");
                             AuctionServer.broadcast("Closed");
+                            BidPublisher.getInstance().notifyObservers();
+
+                            // ĐỒNG BỘ MỚI: Xóa sạch toàn bộ cấu hình Auto ngầm của sản phẩm này vì phiên đã đóng hẳn
+                            AuctionServer.activeAutoBids.keySet().removeIf(key -> key.startsWith(itemId + "-"));
                         }
                     }
                 }
@@ -127,8 +158,6 @@ public class ClientHandler implements Runnable, BidObserver {
         }
         /*
          * KHỐI FINALLY: Luôn chạy dù có lỗi hay không.
-         * Đảm bảo khi Thread kết thúc, client PHẢI được xóa khỏi danh sách của Server
-         * và giải phóng các tài nguyên (Socket, Stream).
          */
         finally {
             try {
@@ -145,6 +174,132 @@ public class ClientHandler implements Runnable, BidObserver {
         }
     }
 
+    /**
+     * THUẬT TOÁN ĐẤU GIÁ TỰ ĐỘNG (AUTO-BID SYSTEM) ĐÃ SỬA ĐỒNG BỘ ĐA NGƯỜI DÙNG
+     * Tự động quét tìm đối thủ và thực hiện chuỗi đẩy giá qua lại thời gian thực.
+     */
+    private void processAutoBidSystem(int itemId) {
+        while (true) {
+            int currentHighestBidderId = -1;
+            double currentPrice = 0.0;
+
+            // 1. Truy vấn trực tiếp từ DB lượt đặt giá cao nhất hiện tại để đảm bảo tính chính xác tuyệt đối
+            String sqlBid = "SELECT user_id, bid_amount FROM bids WHERE item_id = ? ORDER BY bid_amount DESC, bid_time DESC LIMIT 1";
+            try (java.sql.Connection conn = com.auction.database.DBContext.getConnection();
+                 java.sql.PreparedStatement ps = conn.prepareStatement(sqlBid)) {
+                ps.setInt(1, itemId);
+                try (java.sql.ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        currentHighestBidderId = rs.getInt("user_id");
+                        currentPrice = rs.getDouble("bid_amount");
+                    } else {
+                        // Nếu chưa có lượt đặt nào, lấy giá khởi điểm (start_price) làm gốc
+                        String sqlItem = "SELECT startPrice FROM items WHERE id = ?";
+                        try (java.sql.PreparedStatement ps2 = conn.prepareStatement(sqlItem)) {
+                            ps2.setInt(1, itemId);
+                            try (java.sql.ResultSet rs2 = ps2.executeQuery()) {
+                                if (rs2.next()) {
+                                    currentPrice = rs2.getDouble("startPrice");
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                break;
+            }
+
+            // 2. THAY ĐỔI QUAN TRỌNG: Quét bộ nhớ activeAutoBids để tìm ra NGƯỜI DÙNG BỊ ĐÈ GIÁ
+            // có cài Auto-Bid cho món đồ này (userId khác với currentHighestBidderId) nhằm kích hoạt trả đòn
+            AuctionServer.AutoBidConfig config = null;
+            for (AuctionServer.AutoBidConfig c : AuctionServer.activeAutoBids.values()) {
+                if (c.itemId == itemId && c.userId != currentHighestBidderId) {
+                    config = c;
+                    break; // Tìm thấy ứng viên thích hợp để tự động nạp giá đè lại mốc cao nhất
+                }
+            }
+
+            // Nếu không tìm thấy ai cài Auto hoặc người cài Auto chính là người đang giữ giá cao nhất -> Kết thúc chuỗi nhảy Auto
+            if (config == null) {
+                break;
+            }
+
+            // 3. Lấy Bước giá gốc (Original Step) và Giá mua đứt (BIN Price) từ DB
+            double originalStep = 0.0;
+            double binPrice = 0.0;
+            String sqlItemDetails = "SELECT step, binPrice FROM items WHERE id = ?";
+            try (java.sql.Connection conn = com.auction.database.DBContext.getConnection();
+                 java.sql.PreparedStatement ps = conn.prepareStatement(sqlItemDetails)) {
+                ps.setInt(1, itemId);
+                try (java.sql.ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        originalStep = rs.getDouble("step");
+                        binPrice = rs.getDouble("binPrice");
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                break;
+            }
+
+            // Tính toán mức giá dự kiến nhảy tiếp theo
+            double nextAutoPrice = currentPrice + config.autoStep;
+
+            // ====================================================================
+            // ĐIỀU KIỆN 1: Nếu ngưỡng dừng = bin price thì chốt luôn giá mua đứt
+            if (config.stopPrice == binPrice && nextAutoPrice >= binPrice) {
+                boolean success = bidDAO.placeBid(itemId, config.userId, binPrice);
+                if (success) {
+                    itemDAO.closeAuction(itemId, config.userId);
+                    AuctionServer.broadcast("Notify;Sản phẩm [ID: " + itemId + "] đã được chốt mua đứt thành công qua chế độ Auto-BIN!");
+                    AuctionServer.broadcast("Closed");
+                    BidPublisher.getInstance().notifyObservers();
+                }
+                // Xóa cấu hình của người dùng này dựa vào Key chuỗi (itemId-userId)
+                AuctionServer.activeAutoBids.remove(itemId + "-" + config.userId);
+                break;
+            }
+
+            // ĐIỀU KIỆN 2: Khi mức giá nhảy tiếp theo vượt quá Ngưỡng dừng (Stop Price)
+            if (nextAutoPrice > config.stopPrice) {
+                boolean finalBidPlaced = false;
+                // Kiểm tra xem khoảng cách: Ngưỡng dừng - Giá sàn hiện tại có lớn hơn hoặc bằng Bước nhảy gốc không
+                if (config.stopPrice - currentPrice >= originalStep) {
+                    boolean success = bidDAO.placeBid(itemId, config.userId, config.stopPrice);
+                    if (success) {
+                        BidPublisher.getInstance().notifyObservers();
+                        AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + config.userId + ";" + config.stopPrice);
+                        finalBidPlaced = true;
+                    }
+                } else {
+                    System.out.println(">>> [AUTO-BID] Ngừng đặt giá cho User " + config.userId + " do khoảng cách đến ngưỡng dừng nhỏ hơn bước giá sản phẩm.");
+                }
+
+                // Xóa cấu hình của người dùng này ra khỏi Map tĩnh vì đã hết tài nguyên biên
+                AuctionServer.activeAutoBids.remove(itemId + "-" + config.userId);
+                if (finalBidPlaced) {
+                    continue;
+                } else {
+                    break;
+                }
+            }
+
+            // ĐIỀU KIỆN 3: Trường hợp thông thường (Mức giá tiếp theo vẫn nằm dưới ngưỡng dừng)
+            if (nextAutoPrice <= config.stopPrice) {
+                boolean success = bidDAO.placeBid(itemId, config.userId, nextAutoPrice);
+                if (success) {
+                    BidPublisher.getInstance().notifyObservers();
+                    AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + config.userId + ";" + nextAutoPrice);
+                    // LƯU Ý: Không dùng lệnh `break;` ở đây để vòng lặp `while(true)` quay lại kiểm tra tiếp,
+                    // giúp kích hoạt Auto trả đòn của người khác nếu họ cũng bật Auto đấu đá lẫn nhau!
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
     // Gửi tin nhắn
     public void sendMessage(String msg) {
         System.out.println("handler:" + msg);
@@ -157,24 +312,21 @@ public class ClientHandler implements Runnable, BidObserver {
     // Hàm phụ trợ bóc tách số double an toàn, ép sử dụng dấu chấm thập phân theo chuẩn quốc tế
     private double parseDoubleSafe(String value) {
         try {
-            // Sử dụng java.util.Scanner với Locale.US để ép dấu chấm làm dấu thập phân cố định
             try (java.util.Scanner scanner = new java.util.Scanner(value)) {
                 scanner.useLocale(java.util.Locale.US);
                 if (scanner.hasNextDouble()) {
                     return scanner.nextDouble();
                 }
             }
-            // Fallback nếu scanner lỗi
             return Double.parseDouble(value.replace(",", "."));
         } catch (Exception e) {
             return Double.parseDouble(value);
         }
     }
 
-    // THÊM HÀM NÀY: Hàm bắt buộc triển khai của interface BidObserver
+    // Hàm bắt buộc triển khai của interface BidObserver
     @Override
     public void onNotificationReceived() {
-        // Khi Trạm phát sóng trung tâm hô "notify", gửi lệnh REFRESH viết hoa chuẩn giao thức cũ xuống Client
         this.sendMessage("REFRESH");
     }
 }

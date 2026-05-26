@@ -1,6 +1,7 @@
 package com.auction.database;
 
 import com.auction.common.item.*;
+import com.auction.server.AuctionServer;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import java.sql.*;
@@ -127,11 +128,70 @@ public class ItemDAO {
     }
 
     public boolean checkAndCloseExpiredItems() {
-        String sql = "UPDATE items SET status = 'CLOSED', win_price = current_price WHERE status = 'OPEN' AND end_time <= ?";
-        try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-            return ps.executeUpdate() > 0;
-        } catch (Exception e) { e.printStackTrace(); return false; }
+        // 1. Tìm tất cả sản phẩm đã hết giờ đấu giá nhưng trạng thái vẫn đang mở (OPEN)
+        String sqlGetExpired = "SELECT id FROM items WHERE end_time <= ? AND status = 'OPEN'";
+
+        // 2. SỬA: Đã đồng bộ sang 'bid_amount' khớp 100% với file BidDAO của bạn
+        String sqlSetWinner = "UPDATE items i " +
+                "JOIN bids b ON b.item_id = i.id " +
+                "SET i.status = 'CLOSED', " +
+                "    i.winner_id = b.user_id, " +
+                "    i.win_price = b.bid_amount, " +
+                "    i.payment_status = 'PENDING' " +
+                "WHERE i.id = ? " +
+                "  AND b.bid_amount = (SELECT MAX(bid_amount) FROM bids WHERE item_id = ?)";
+
+        // 3. Câu lệnh hủy phiên đấu giá nếu đếm số lượt đặt giá trong bảng bids bằng 0
+        String sqlCancelItem = "UPDATE items SET status = 'CLOSED', payment_status = 'EXPIRED' WHERE id = ? " +
+                "AND (SELECT COUNT(*) FROM bids WHERE item_id = ?) = 0";
+
+        boolean hasChanges = false; // Biến đánh dấu có sự thay đổi dữ liệu hay không
+
+        try (Connection conn = DBContext.getConnection()) {
+            conn.setAutoCommit(false); // Bật giao dịch an toàn
+
+            try (PreparedStatement psGet = conn.prepareStatement(sqlGetExpired)) {
+                psGet.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+                try(ResultSet rs = psGet.executeQuery()){
+                    while (rs.next()) {
+                        int itemId = rs.getInt("id");
+
+                        // Thử chốt người thắng cuộc trước
+                        try (PreparedStatement psWin = conn.prepareStatement(sqlSetWinner)) {
+                            psWin.setInt(1, itemId);
+                            psWin.setInt(2, itemId);
+                            int rows = psWin.executeUpdate();
+                            if (rows > 0) {
+                                System.out.println(">>> [DB] Sản phẩm ID " + itemId + " đã kết thúc -> Xác định được người thắng.");
+                                hasChanges = true;
+                                continue; // Đã xử lý xong sản phẩm này, chuyển sang sản phẩm tiếp theo
+                            }
+                        }
+
+                        // Nếu không chốt được ai (0 rows bị tác động nghĩa là không ai đặt giá) -> Chạy lệnh hủy phiên
+                        try (PreparedStatement psCancel = conn.prepareStatement(sqlCancelItem)) {
+                            psCancel.setInt(1, itemId);
+                            psCancel.setInt(2, itemId);
+                            int rows = psCancel.executeUpdate();
+                            if (rows > 0) {
+                                System.out.println(">>> [DB] Sản phẩm ID " + itemId + " đã kết thúc -> Không ai đấu giá (HỦY PHIÊN).");
+                                hasChanges = true;
+                            }
+                        }
+                    }
+                }
+
+                conn.commit(); // Lưu tất cả thay đổi xuống Database
+
+            } catch (SQLException e) {
+                conn.rollback(); // Hoàn tác nếu xảy ra lỗi trong quá trình duyệt
+                e.printStackTrace();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return hasChanges; // Trả về true/false để luồng tự động nhận biết và phát tín hiệu broadcast
     }
 
     public static void processExpiredPayments() {

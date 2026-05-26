@@ -4,11 +4,41 @@ import com.auction.database.ItemDAO;
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class AuctionServer {
     private static final int PORT = 12345;
     // Dùng Set bình thường vì chúng ta sẽ tự synchronized bằng tay khi duyệt vòng lặp
     private static final Set<ClientHandler> clients = new HashSet<>();
+
+    // ====================================================================
+    // THÊM MỚI: CẤU TRÚC LƯU TRỮ VÀ BỘ NHỚ ĐỆM CHO TÍNH NĂNG AUTO-BID
+    // ====================================================================
+
+    /**
+     * Lớp đối tượng đại diện cho một cấu hình Đấu giá tự động
+     */
+    public static class AutoBidConfig {
+        public int itemId;
+        public int userId;
+        public double autoStep;
+        public double stopPrice;
+
+        public AutoBidConfig(int itemId, int userId, double autoStep, double stopPrice) {
+            this.itemId = itemId;
+            this.userId = userId;
+            this.autoStep = autoStep;
+            this.stopPrice = stopPrice;
+        }
+    }
+
+    /**
+     * Trạm quản lý dữ liệu Auto-Bid tập trung toàn hệ thống (Thread-safe)
+     * Key: itemId (Mã sản phẩm) -> Value: Cấu hình Auto-Bid được kích hoạt gần nhất
+     */
+    public static final Map<String, AutoBidConfig> activeAutoBids = new ConcurrentHashMap<>();
+
+    // ====================================================================
 
     public static void main(String[] args){
         new Thread(() -> {

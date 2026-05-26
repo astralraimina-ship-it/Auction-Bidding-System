@@ -7,16 +7,20 @@ import com.auction.network.ClientManager;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
-import javafx.stage.Stage;
-
 import java.util.List;
 import java.util.Optional;
 
 public class BidderAuctionRoomController implements ClientManager.UpdateListener {
     @FXML private Label lblProductName, lblCurrentPrice, lblStep, lblBinPrice;
     @FXML private TextField txtBidInput;
+
+    // ĐÃ BỔ SUNG: Khai báo 2 ô nhập liệu trực tiếp từ giao diện FXML mới
+    @FXML private TextField txtAutoStep;
+    @FXML private TextField txtStopPrice;
+
     @FXML private TextArea txtAreaLog;
     @FXML private Button btnPlaceBid;
+    @FXML private Button btnAutoBidSetup; // Nút màu cam "KÍCH HOẠT AUTO-BID" của bạn
 
     private Item currentItem;
     private final BidDAO bidDAO = new BidDAO();
@@ -33,36 +37,89 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
         lblProductName.setText(item.getName());
         lblStep.setText("Bước giá tối thiểu: " + String.format("%,.0f", item.getStep()) + " VNĐ");
         lblBinPrice.setText("Giá mua đứt: " + String.format("%,.0f", item.getBinPrice()) + " VNĐ");
+
+        // ĐÃ BỔ SUNG: Gợi ý sẵn (PromptText) số tiền hợp lệ vào 2 ô nhập để người dùng dễ nhìn
+        if (txtAutoStep != null) txtAutoStep.setPromptText("Ví dụ: " + String.format("%.0f", item.getStep()));
+        if (txtStopPrice != null) txtStopPrice.setPromptText("Ví dụ: " + String.format("%.0f", item.getBinPrice()));
+
         manualRefresh();
         loadHistoryFromDatabase();
 
         // ĐĂNG KÝ LISTENER AN TOÀN (Dùng 'this' vì class đã implement UpdateListener)
         ClientManager.getInstance().addUpdateListener(this);
     }
-    // Trong file BidderAuctionRoomController.java
 
+    /**
+     * Tải lịch sử đấu giá từ Database lên ô văn bản nhật ký
+     */
     private void loadHistoryFromDatabase() {
         if (currentItem == null) return;
 
-        // BỌC ĐOẠN CODE TRY-CATCH CỦA BẠN VÀO ĐÂY
         try {
-            // Gọi xuống DB trên Aiven để lấy danh sách chuỗi lịch sử
             List<String> logs = bidDAO.getBidHistoryText(currentItem.getId());
-
-            // Nếu kết nối mượt mà không lỗi, tiến hành xóa trắng dữ liệu cũ và nạp mới lên UI
             txtAreaLog.clear();
             for (String log : logs) {
                 txtAreaLog.appendText(log + "\n");
             }
-
         } catch (Exception e) {
-            // Nếu mạng của máy Client bị rớt, không gọi được tới host của Aiven, nó sẽ rơi vào đây:
             showError("Không thể tải dữ liệu từ cơ sở dữ liệu Cloud. Vui lòng kiểm tra kết nối Internet!");
-
-            // (Tùy chọn) Bạn có thể in ra lỗi chi tiết ở Console để lập trình viên dễ debug:
             e.printStackTrace();
         }
     }
+
+    /**
+     * ĐÃ SỬA ĐỔI TRIỆT ĐỂ: Lấy dữ liệu trực tiếp từ giao diện, XÓA BỎ HỘP THOẠI DIALOG RÁC.
+     * Ủy quyền tác vụ đẩy giá lên Server để chạy độc lập khi Client đóng phòng.
+     */
+    @FXML
+    private void handleAutoBidSetup() {
+        if (currentItem == null) return;
+
+        // 1. Đọc dữ liệu trực tiếp từ 2 ô nhập trên UI
+        String stepStr = txtAutoStep.getText().trim();
+        String stopStr = txtStopPrice.getText().trim();
+
+        // Kiểm tra xem người dùng có bỏ trống ô nào không
+        if (stepStr.isEmpty() || stopStr.isEmpty()) {
+            showError("Vui lòng nhập đầy đủ cả Bước nhảy Auto và Ngưỡng dừng tối đa!");
+            return;
+        }
+
+        try {
+            double autoStep = Double.parseDouble(stepStr);
+            double stopPrice = Double.parseDouble(stopStr);
+
+            // RÀNG BUỘC 1: Bước nhảy tự động phải LỚN HƠN HOẶC BẰNG bước nhảy của sản phẩm
+            if (autoStep < currentItem.getStep()) {
+                showError("Lỗi cấu hình: Bước nhảy tự động phải LỚN HƠN HOẶC BẰNG bước nhảy gốc của sản phẩm (" + String.format("%,.0f", currentItem.getStep()) + " VNĐ)!");
+                return;
+            }
+
+            // RÀNG BUỘC 2: Ngưỡng dừng không được lớn hơn bin price (giá mua đứt)
+            if (stopPrice > currentItem.getBinPrice()) {
+                showError("Lỗi cấu hình: Ngưỡng dừng tối đa không được vượt quá Giá mua đứt (" + String.format("%,.0f", currentItem.getBinPrice()) + " VNĐ)!");
+                return;
+            }
+
+            // 2. Gửi lệnh cấu hình thẳng lên Server qua Socket trung tâm để Server chịu trách nhiệm lưu trữ chạy ngầm
+            // Cấu trúc chuỗi gửi: SET_AUTOBID;itemId;userId;autoStep;stopPrice
+            String cmd = "SET_AUTOBID;" + currentItem.getId() + ";" + currentUserId + ";" + autoStep + ";" + stopPrice;
+            ClientManager.getInstance().sendCommand(cmd);
+
+            // Ghi nhận trực tiếp trạng thái lên Nhật ký phòng đấu giá nội bộ
+            logAction("Hệ thống: Đã kích hoạt Auto-Bid thành công (Bước nhảy: "
+                    + String.format("%,.0f", autoStep) + " VNĐ | Ngưỡng dừng: "
+                    + String.format("%,.0f", stopPrice) + " VNĐ). Nhiệm vụ đã giao cho Server xử lý ngầm.");
+
+            // 3. Xóa trắng các ô nhập liệu cho sạch giao diện sau khi cài đặt thành công
+            txtAutoStep.clear();
+            txtStopPrice.clear();
+
+        } catch (NumberFormatException e) {
+            showError("Định dạng nhập vào không hợp lệ! Vui lòng chỉ nhập các ký tự số.");
+        }
+    }
+
     /**
      * Triển khai hàm onUpdateReceived từ interface UpdateListener
      * Tất cả các tín hiệu real-time tự động đổ về đây và xử lý an toàn trong Platform.runLater
@@ -70,7 +127,6 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
     @Override
     public void onUpdateReceived(String signal) {
         Platform.runLater(() -> {
-            // Sử dụng equalsIgnoreCase để loại bỏ hoàn toàn lỗi lệch chữ HOA / chữ thường
             if (signal.equalsIgnoreCase("REFRESH")) {
                 manualRefresh();
             }
@@ -79,8 +135,14 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
             }
             else if (signal.equalsIgnoreCase("Closed")) {
                 logAction("Hệ thống: Phiên đấu giá đã kết thúc.");
+
+                // Khóa toàn bộ các ô nhập và nút bấm liên quan khi phòng đã đóng cửa
                 txtBidInput.setDisable(true);
                 btnPlaceBid.setDisable(true);
+                if (btnAutoBidSetup != null) btnAutoBidSetup.setDisable(true);
+                if (txtAutoStep != null) txtAutoStep.setDisable(true);
+                if (txtStopPrice != null) txtStopPrice.setDisable(true);
+
                 manualRefresh();
             }
             else if (signal.startsWith("Notify;")) {
@@ -91,14 +153,12 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
                 int updatedItemId = Integer.parseInt(parts[1]);
                 int bidderId = Integer.parseInt(parts[2]);
                 double amount = Double.parseDouble(parts[3]);
+
                 if (currentItem != null && currentItem.getId() == updatedItemId) {
                     String newLog = "User ID " + bidderId + " đã đặt giá " + String.format("%,.0f", amount) + " VNĐ";
-
-                    // Cách 1: Thêm trực tiếp dòng chữ mới vào cuối TextArea (Mượt và không cần load lại cả DB)
                     txtAreaLog.appendText(newLog + "\n");
-
-                    // Cách 2: Gọi lại hàm loadHistoryFromDatabase() nếu muốn đồng bộ tuyệt đối với DB
                     loadHistoryFromDatabase();
+                    manualRefresh();
                 }
             }
             else if (signal.startsWith("Error;")) {

@@ -39,6 +39,9 @@ public abstract class Item implements Serializable {
         this.endTime = endTime;
         this.status = status;
         this.paymentStatus = paymentStatus;
+
+        System.out.println(status);
+        System.out.println(paymentStatus);
     }
 
     public abstract String getItemDetails();

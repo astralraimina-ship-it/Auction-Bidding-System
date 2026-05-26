@@ -13,20 +13,52 @@
 
                 <HBox spacing="25.0" VBox.vgrow="ALWAYS">
                     <children>
-                        <VBox prefWidth="400.0" spacing="15.0" style="-fx-background-color: white; -fx-padding: 20; -fx-background-radius: 10; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 0);">
+                        <VBox prefWidth="420.0" spacing="12.0" style="-fx-background-color: white; -fx-padding: 15; -fx-background-radius: 10; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 0);">
                             <children>
                                 <Label fx:id="lblCurrentPrice" text="GIÁ HIỆN TẠI: 0 VNĐ" textFill="#e74c3c">
                                     <font><Font name="System Bold" size="20.0" /></font>
                                 </Label>
                                 <Label fx:id="lblStep" text="Bước giá tối thiểu: 0 VNĐ" />
                                 <Label fx:id="lblBinPrice" text="Giá mua đứt: 0 VNĐ" textFill="#2980b9" />
+
                                 <Separator />
-                                <Label text="Nhập giá của bạn:" />
-                                <TextField fx:id="txtBidInput" prefHeight="45.0" promptText="0.0" />
-                                <Button fx:id="btnPlaceBid" maxWidth="Infinity" onAction="#handlePlaceBid" prefHeight="50.0" style="-fx-background-color: #27ae60;" text="ĐẶT GIÁ NGAY" textFill="white">
-                                    <font><Font name="System Bold" size="16.0" /></font>
+
+                                <Label text="Nhập giá thủ công:" style="-fx-font-weight: bold;" textFill="#2c3e50" />
+                                <TextField fx:id="txtBidInput" prefHeight="35.0" promptText="Nhập số tiền muốn đặt..." />
+                                <Button fx:id="btnPlaceBid" maxWidth="Infinity" onAction="#handlePlaceBid" prefHeight="40.0" style="-fx-background-color: #27ae60;" text="ĐẶT GIÁ NGAY" textFill="white">
+                                    <font><Font name="System Bold" size="14.0" /></font>
                                 </Button>
-                                <Button fx:id="btnRefresh" maxWidth="Infinity" onAction="#manualRefresh" text="🔄 Làm mới dữ liệu" />
+
+                                <Separator />
+
+                                <Label text="Chế độ đấu giá tự động (Auto-Bid):" style="-fx-font-weight: bold;" textFill="#d35400">
+                                    <font><Font name="System Bold" size="13.0" /></font>
+                                </Label>
+
+                                <HBox spacing="10.0">
+                                    <children>
+                                        <VBox HBox.hgrow="ALWAYS" spacing="5.0">
+                                            <children>
+                                                <Label text="Bước nhảy Auto (VNĐ):" style="-fx-font-size: 11px;" />
+                                                <TextField fx:id="txtAutoStep" prefHeight="35.0" promptText="Ví dụ: 20000" />
+                                            </children>
+                                        </VBox>
+                                        <VBox HBox.hgrow="ALWAYS" spacing="5.0">
+                                            <children>
+                                                <Label text="Ngưỡng dừng tối đa:" style="-fx-font-size: 11px;" />
+                                                <TextField fx:id="txtStopPrice" prefHeight="35.0" promptText="Ví dụ: 500000" />
+                                            </children>
+                                        </VBox>
+                                    </children>
+                                </HBox>
+
+                                <Button fx:id="btnAutoBidSetup" maxWidth="Infinity" onAction="#handleAutoBidSetup" prefHeight="40.0" style="-fx-background-color: #e67e22;" text="KÍCH HOẠT AUTO-BID" textFill="white">
+                                    <font><Font name="System Bold" size="14.0" /></font>
+                                </Button>
+
+                                <Separator />
+
+                                <Button fx:id="btnRefresh" maxWidth="Infinity" onAction="#manualRefresh" prefHeight="30.0" text="🔄 Làm mới dữ liệu" />
                             </children>
                         </VBox>
 
@@ -35,7 +67,7 @@
                                 <Label text="Nhật ký phòng đấu giá:">
                                     <font><Font name="System Italic" size="13.0" /></font>
                                 </Label>
-                                <TextArea fx:id="txtAreaLog" editable="false" VBox.vgrow="ALWAYS" style="-fx-font-family: 'Consolas'; -fx-font-size: 12px;" />
+                                <TextArea fx:id="txtAreaLog" editable="false" style="-fx-font-family: 'Consolas'; -fx-font-size: 12px;" VBox.vgrow="ALWAYS" />
                             </children>
                         </VBox>
                     </children>
