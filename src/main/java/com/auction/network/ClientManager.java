@@ -93,7 +93,7 @@ public class ClientManager {
                     alert.setTitle("Cảnh Báo Mạng");
                     alert.setHeaderText("Kết nối mạng bị gián đoạn!");
                     alert.setContentText("Mất kết nối đến server, vui lòng kiểm tra lại đường truyền internet của bạn!");
-                    alert.showAndWait();
+                    alert.show();
 
                     // Hướng xử lý sau khi bấm OK:
                     // Khóa các nút "Đặt giá ngay" để họ không bấm được nữa, hoặc đẩy họ ra màn hình danh sách sản phẩm.

@@ -93,7 +93,6 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
             }
 
             // 💡 GIẢI PHÁP THÔNG MINH: Lấy luôn bước giá tối thiểu của sản phẩm làm bước nhảy Auto mặc định
-            // Điều này giúp giữ nguyên cấu trúc gói tin Server (5 tham số) mà bạn không cần sửa code Server nhận lệnh.
             double autoStep = currentItem.getStep();
 
             // Gửi lệnh kích hoạt lên Server
@@ -121,14 +120,12 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
     }
 
     /**
-     * 🔥 THÊM MỚI: Xử lý nút HỦY/DỪNG chế độ đấu giá tự động
+     * 🔥 Xử lý nút HỦY/DỪNG chế độ đấu giá tự động
      */
     @FXML
     private void handleStopAutoBid() {
         if (currentItem == null) return;
 
-        // Gửi lệnh tắt chế độ Auto-bid của User này đối với sản phẩm này lên Server
-        // Định dạng chuỗi gửi tùy thuộc hệ thống Server của bạn, thông thường là: STOP_AUTOBID;itemId;userId
         String cmd = "STOP_AUTOBID;" + currentItem.getId() + ";" + currentUserId;
         ClientManager.getInstance().sendCommand(cmd);
 
@@ -168,10 +165,12 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
 
                 manualRefresh();
             }
+            // ĐÃ SỬA: Tiếp nhận thêm tham số Budget từ Server gửi về và đưa vào logAction
             else if (signal.startsWith("AUTOBID_STATUS")) {
                 String[] part = signal.split(";");
                 String status = part[1];
                 int userId = Integer.parseInt(part[2]);
+
                 if (currentUserId == userId){
                     if (status.equals("ACTIVE")){
                         txtBidInput.setDisable(true);
@@ -179,6 +178,13 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
                         txtStopPrice.setDisable(true);
                         btnAutoBidSetup.setDisable(true);
                         btnStopAutoBid.setDisable(false); // Hiện nút dừng
+
+                        // KIỂM TRA & HIỂN THỊ BUDGET (LỖI 3)
+                        if (part.length > 3) {
+                            double budget = Double.parseDouble(part[3]);
+                            logAction("Hệ thống: Bạn đang trong trạng thái TỰ ĐỘNG ĐẤU GIÁ với ngân sách tối đa "
+                                    + String.format("%,.0f", budget) + " VNĐ.");
+                        }
                     }
                     else if (status.equals("INACTIVE")) {
                         txtBidInput.setDisable(false);
@@ -186,6 +192,8 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
                         txtStopPrice.setDisable(false);
                         btnAutoBidSetup.setDisable(false);
                         btnStopAutoBid.setDisable(true); // Ẩn nút dừng
+
+                        logAction("Hệ thống: Chế độ Autobid của bạn hiện đang tắt / Đã bị hủy.");
                     }
                 }
             }

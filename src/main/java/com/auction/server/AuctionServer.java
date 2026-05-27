@@ -61,6 +61,10 @@ public class AuctionServer {
                 activeAuctions.put(id, state);
             }
             System.out.println(">>> [SERVER] Đã nạp " + activeAuctions.size() + " phòng đấu giá lên RAM.");
+
+            // 🔥 THÊM CHÍ MẠNG: Hồi sinh dữ liệu Auto-Bid từ DB đút lên RAM ngay khi khởi động xong các phòng
+            loadActiveAutoBidsFromDB();
+
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -143,5 +147,41 @@ public class AuctionServer {
 
     public static int getPort(){
         return PORT;
+    }
+
+    /**
+     * Hàm nạp cấu hình Auto-Bid đang hoạt động từ DB lên RAM khi khởi động Server
+     */
+    public static void loadActiveAutoBidsFromDB() {
+        String sql = "SELECT item_id, user_id, max_budget FROM autobids WHERE is_active = TRUE";
+        try (java.sql.Connection conn = com.auction.database.DBContext.getConnection();
+             java.sql.PreparedStatement ps = conn.prepareStatement(sql);
+             java.sql.ResultSet rs = ps.executeQuery()) {
+
+            int count = 0;
+            while (rs.next()) {
+                int itemId = rs.getInt("item_id");
+                int userId = rs.getInt("user_id");
+                double maxBudget = rs.getDouble("max_budget");
+
+                // 1. Nạp ngược lại vào Map RAM quản lý Auto-Bid của Server
+                activeAutoBids.computeIfAbsent(itemId, k -> new java.util.concurrent.ConcurrentHashMap<>())
+                        .put(userId, maxBudget);
+
+                // 2. Đồng bộ trạng thái Bot vào đối tượng quản lý phòng đấu giá tương ứng (nếu phòng đó đang mở)
+                AuctionState state = activeAuctions.get(itemId);
+                if (state != null) {
+                    // Nếu mức budget này cao hơn giá hiện tại, nạp trạng thái Auto cho phòng đấu giá
+                    if (maxBudget > state.getCurrentPrice()) {
+                        state.setAutoTopBidder(userId, state.getCurrentPrice(), maxBudget);
+                    }
+                }
+                count++;
+            }
+            System.out.println(">>> [SERVER STARTUP] Đã hồi sinh thành công " + count + " cấu hình Auto-Bid từ Database lên RAM!");
+        } catch (Exception e) {
+            System.out.println(">>> [LỖI] Không thể nạp cấu hình Auto-Bid từ DB khi khởi động Server!");
+            e.printStackTrace();
+        }
     }
 }

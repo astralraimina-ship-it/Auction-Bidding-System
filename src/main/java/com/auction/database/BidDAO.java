@@ -44,7 +44,40 @@ public class BidDAO {
         }
     }
 
-    // Các hàm khác giữ nguyên
+    /**
+     * 🔥 THÊM MỚI: Lưu hoặc cập nhật cấu hình Auto-Bid của người dùng xuống Database
+     */
+    public void saveOrUpdateAutoBid(int itemId, int userId, double maxBudget) {
+        String sql = "INSERT INTO autobids (item_id, user_id, max_budget, is_active) " +
+                "VALUES (?, ?, ?, TRUE) " +
+                "ON DUPLICATE KEY UPDATE max_budget = ?, is_active = TRUE";
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, itemId);
+            ps.setInt(2, userId);
+            ps.setDouble(3, maxBudget);
+            ps.setDouble(4, maxBudget);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 🔥 THÊM MỚI: Tắt trạng thái hoạt động Auto-Bid của người dùng cho sản phẩm cụ thể
+     */
+    public void deactivateAutoBid(int itemId, int userId) {
+        String sql = "UPDATE autobids SET is_active = FALSE WHERE item_id = ? AND user_id = ?";
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, itemId);
+            ps.setInt(2, userId);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     public double getCurrentMaxBid(int itemId, double startPrice) {
         String sql = "SELECT MAX(bid_amount) as max_bid FROM bids WHERE item_id = ?";
         try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -69,27 +102,28 @@ public class BidDAO {
         } catch (Exception e) { e.printStackTrace(); }
         return 0;
     }
+
     public List<String> getBidHistoryText(int itemId) {
         List<String> historyList = new ArrayList<>();
-            // Sắp xếp bid_time ASC để lượt cũ ở trên, lượt mới nhất xuất hiện ở dưới cùng
+        // Sắp xếp bid_time ASC để lượt cũ ở trên, lượt mới nhất xuất hiện ở dưới cùng
         String sql = "SELECT user_id, bid_amount FROM bids WHERE item_id = ? ORDER BY bid_time ASC";
 
         try (Connection conn = DBContext.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setInt(1, itemId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        int bidderId = rs.getInt("user_id");
-                        double bidAmount = rs.getDouble("bid_amount");
+            ps.setInt(1, itemId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    int bidderId = rs.getInt("user_id");
+                    double bidAmount = rs.getDouble("bid_amount");
 
-                        // Định dạng chuỗi hiển thị theo ý bạn
-                        String logLine = "User ID " + bidderId + " đã đặt giá " + String.format("%,.0f", bidAmount) + " VNĐ";
-                        historyList.add(logLine);
-                    }
+                    // Định dạng chuỗi hiển thị theo ý bạn
+                    String logLine = "User ID " + bidderId + " đã đặt giá " + String.format("%,.0f", bidAmount) + " VNĐ";
+                    historyList.add(logLine);
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         return historyList;
     }
 }
