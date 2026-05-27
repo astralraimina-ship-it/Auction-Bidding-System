@@ -65,12 +65,26 @@ public class ClientHandler implements Runnable, BidObserver {
                                 state.setManualTopBidder(userId, bidAmount);
                                 AuctionServer.activeAutoBids.get(itemId).remove(highestBidderId);
 
-                                // 🔥 THÊM: Đặt giá tay vượt qua giá trần Auto cũ -> Hủy trạng thái Auto của người cũ dưới DB
+                                // Đặt giá tay vượt qua giá trần Auto cũ -> Hủy trạng thái Auto của người cũ dưới DB
                                 bidDAO.deactivateAutoBid(itemId, highestBidderId);
 
                                 this.sendMessage("AUTOBID_STATUS;INACTIVE;" + userId);
                                 bidDAO.placeBid(itemId, userId, bidAmount);
                                 AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + userId + ";" + bidAmount);
+
+                                // 🔥 THÊM: Kiểm tra nếu giá đặt tay vọt thẳng qua hoặc bằng giá BIN luôn
+                                if (state.isBin()){
+                                    closeAuction(itemId, userId);
+                                }
+                            }
+                            else if (bidAmount == maxAutoBudget) {
+                                // 🔥 SỬA: Người đặt tay bằng đúng giá trần Autobid (bao gồm cả giá BIN) -> Ưu tiên Autobid đặt trước ăn luôn!
+                                state.setCurrentPrice(maxAutoBudget);
+                                bidDAO.placeBid(itemId, highestBidderId, maxAutoBudget);
+                                AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + highestBidderId + ";" + maxAutoBudget);
+                                if (state.isBin()){
+                                    closeAuction(itemId, highestBidderId);
+                                }
                             }
                             else{
                                 double newPrice = bidAmount + stepPrice;
@@ -91,6 +105,9 @@ public class ClientHandler implements Runnable, BidObserver {
                             state.setManualTopBidder(userId, bidAmount);
                             bidDAO.placeBid(itemId, userId, bidAmount);
                             AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + userId + ";" + bidAmount);
+                            if (state.isBin()){
+                                closeAuction(itemId, userId);
+                            }
                         }
                         BidPublisher.getInstance().notifyObservers();
                     }
@@ -122,25 +139,22 @@ public class ClientHandler implements Runnable, BidObserver {
                             return;
                         }
 
-                        // SỬA LỖI 2: Nếu chính người này đang giữ đỉnh, chỉ cấu hình Budget, GIỮ NGUYÊN GIÁ hiện tại
+                        // Nếu chính người này đang giữ đỉnh, chỉ cấu hình Budget, GIỮ NGUYÊN GIÁ hiện tại
                         if (highestBidderId == userId) {
                             state.setAutoTopBidder(userId, currentPrice, stopPrice);
                             AuctionServer.activeAutoBids.computeIfAbsent(itemId, k -> new ConcurrentHashMap<>()).put(userId, stopPrice);
 
-                            // 🔥 THÊM: Lưu/Cập nhật cấu hình Auto bền vững xuống Database
+                            // Lưu/Cập nhật cấu hình Auto bền vững xuống Database
                             bidDAO.saveOrUpdateAutoBid(itemId, userId, stopPrice);
 
-                            // SỬA LỖI 3: Trả thông báo thành công kèm theo số tiền budget ra đuôi tin nhắn
                             this.sendMessage("AUTOBID_STATUS;ACTIVE;" + userId + ";" + stopPrice);
                             BidPublisher.getInstance().notifyObservers();
                             return;
                         }
 
                         if (state.isTopBidderAuto()){
-                            // SỬA LỖI 1: Hai người cùng đặt khít giá trần (Ai đến trước ăn trước)
                             if (stopPrice == currentTopBudget) {
                                 state.setCurrentPrice(stopPrice);
-                                // Người mới đặt trùng giá sẽ bị tạch ngay lập tức
                                 this.sendMessage("AUTOBID_STATUS;INACTIVE;" + userId);
                                 bidDAO.placeBid(itemId, highestBidderId, stopPrice);
                                 AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + highestBidderId + ";" + stopPrice);
@@ -157,11 +171,9 @@ public class ClientHandler implements Runnable, BidObserver {
                                 AuctionServer.activeAutoBids.get(itemId).remove(highestBidderId);
                                 AuctionServer.activeAutoBids.computeIfAbsent(itemId, k -> new ConcurrentHashMap<>()).put(userId, stopPrice);
 
-                                // 🔥 THÊM: Người mới chiến thắng -> Lưu cấu hình mới và hủy cấu hình Auto cũ của đối thủ trong DB
                                 bidDAO.saveOrUpdateAutoBid(itemId, userId, stopPrice);
                                 bidDAO.deactivateAutoBid(itemId, highestBidderId);
 
-                                // SỬA LỖI 3: Người mới thắng thế, gửi trạng thái kèm budget
                                 this.sendMessage("AUTOBID_STATUS;ACTIVE;" + userId + ";" + stopPrice);
 
                                 bidDAO.placeBid(itemId, userId, newPrice);
@@ -192,10 +204,8 @@ public class ClientHandler implements Runnable, BidObserver {
                             state.setAutoTopBidder(userId, newPrice, stopPrice);
                             AuctionServer.activeAutoBids.computeIfAbsent(itemId, k -> new ConcurrentHashMap<>()).put(userId, stopPrice);
 
-                            // 🔥 THÊM: Đối thủ trước đó chơi tay -> Lưu cấu hình Auto của mình xuống DB luôn
                             bidDAO.saveOrUpdateAutoBid(itemId, userId, stopPrice);
 
-                            // SỬA LỖI 3: Đăng ký thành công lần đầu khi đối thủ là thủ công
                             this.sendMessage("AUTOBID_STATUS;ACTIVE;" + userId + ";" + stopPrice);
 
                             bidDAO.placeBid(itemId, userId, newPrice);
@@ -220,7 +230,6 @@ public class ClientHandler implements Runnable, BidObserver {
                         AuctionState state = AuctionServer.activeAuctions.get(itemId);
                         if (state != null) {
                             synchronized (state) {
-                                // Nếu chính thằng xin dừng đang giữ đỉnh, chuyển trạng thái Bot của nó về Manual thủ công
                                 if (state.getHighestBidderId() == userId) {
                                     state.setManualTopBidder(userId, state.getCurrentPrice());
                                 }
@@ -228,7 +237,6 @@ public class ClientHandler implements Runnable, BidObserver {
                         }
                     }
 
-                    // 🔥 THÊM: Người dùng chủ động bấm dừng -> Tắt trạng thái hoạt động trong Database
                     bidDAO.deactivateAutoBid(itemId, userId);
 
                     this.sendMessage("AUTOBID_STATUS;INACTIVE;" + userId);
@@ -236,7 +244,7 @@ public class ClientHandler implements Runnable, BidObserver {
                     BidPublisher.getInstance().notifyObservers();
                 }
                 // ================================================================
-                // 5. KIỂM TRA TRẠNG THÁI AUTO-BID ĐỂ HIỂN THỊ KÈM BUDGET (SỬA LỖI 3)
+                // 5. KIỂM TRA TRẠNG THÁI AUTO-BID ĐỂ HIỂN THỊ KÈM BUDGET
                 // ================================================================
                 else if (request.startsWith("CHECK_AUTOBID_STATUS;")) {
                     String[] parts = request.split(";");
@@ -252,22 +260,49 @@ public class ClientHandler implements Runnable, BidObserver {
                         }
                     }
 
-                    // SỬA LỖI 3: Nếu đang bật Auto, bắn kèm theo thông số Budget về để Client hiển thị lên UI
                     if (isActive) {
                         this.sendMessage("AUTOBID_STATUS;ACTIVE;" + userId + ";" + savedBudget);
                     } else {
                         this.sendMessage("AUTOBID_STATUS;INACTIVE;" + userId);
                     }
                 }
+                // ================================================================
+                // 6. 🔥 XỬ LÝ MUA NGAY (BIN) TỪ BUTTON CLIENT GỬI LÊN
+                // ================================================================
                 else if (request.startsWith("BIN")){
                     String[] part = request.split(";");
                     int itemId = Integer.parseInt(part[1]);
                     int userId = Integer.parseInt(part[2]);
                     double binPrice = parseDoubleSafe(part[3]);
 
-                    boolean success = bidDAO.placeBid(itemId, userId, binPrice);
-                    if (success){
-                        closeAuction(itemId, userId);
+                    AuctionState state = AuctionServer.activeAuctions.get(itemId);
+                    if (state == null) {
+                        this.sendMessage("ERROR;Phòng đấu giá không tồn tại hoặc đã kết thúc!");
+                        return;
+                    }
+
+                    synchronized (state) {
+                        // 🔥 SỬA: Nếu đang có người đặt Autobid với giá trần >= giá BIN -> Ưu tiên người đặt trước ăn luôn
+                        if (state.isTopBidderAuto()) {
+                            double maxAutoBudget = state.getTopAutoMaxBudget();
+                            int highestBidderId = state.getHighestBidderId();
+
+                            if (maxAutoBudget >= binPrice) {
+                                state.setCurrentPrice(binPrice);
+                                bidDAO.placeBid(itemId, highestBidderId, binPrice);
+                                AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + highestBidderId + ";" + binPrice);
+                                closeAuction(itemId, highestBidderId);
+                                BidPublisher.getInstance().notifyObservers();
+                                continue; // Ngắt luồng xử lý tại đây để bỏ qua đoạn code BIN thủ công phía dưới
+                            }
+                        }
+
+                        // Trường hợp không có Autobid hoặc giá trần Autobid không với tới giá BIN
+                        boolean success = bidDAO.placeBid(itemId, userId, binPrice);
+                        if (success){
+                            closeAuction(itemId, userId);
+                        }
+                        BidPublisher.getInstance().notifyObservers();
                     }
                 }
                 else if (request.startsWith("PAY")) {

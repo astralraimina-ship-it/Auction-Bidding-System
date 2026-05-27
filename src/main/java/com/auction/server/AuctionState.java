@@ -87,4 +87,5 @@ public class AuctionState {
         }
         return false;
     }
+    public double getBinPrice() { return this.binPrice; }
 }
