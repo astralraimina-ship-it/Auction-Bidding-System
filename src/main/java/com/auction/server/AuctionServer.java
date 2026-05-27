@@ -36,11 +36,34 @@ public class AuctionServer {
      * Trạm quản lý dữ liệu Auto-Bid tập trung toàn hệ thống (Thread-safe)
      * Key: itemId (Mã sản phẩm) -> Value: Cấu hình Auto-Bid được kích hoạt gần nhất
      */
-    public static final Map<String, AutoBidConfig> activeAutoBids = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<Integer, AuctionState> activeAuctions = new ConcurrentHashMap<>();
+    public static final Map<Integer, Map<Integer, Double>> activeAutoBids = new ConcurrentHashMap<>();
 
     // ====================================================================
 
     public static void main(String[] args){
+        try (java.sql.Connection conn = com.auction.database.DBContext.getConnection();
+             java.sql.PreparedStatement ps = conn.prepareStatement("SELECT id, current_price, step, startPrice, binPrice FROM items WHERE status = 'OPEN'");
+             java.sql.ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                int id = rs.getInt("id");
+                double currentPrice = rs.getDouble("current_price"); // Lấy giá hiện hành
+                double step = rs.getDouble("step");
+                double startPrice = rs.getDouble("startPrice");
+                if (currentPrice == 0){
+                    currentPrice = startPrice;
+                }
+                double binPrice = rs.getDouble("binPrice");
+
+                // Khởi tạo Trọng tài cho từng món hàng đang bán
+                AuctionState state = new AuctionState(id, currentPrice, step, binPrice);
+                activeAuctions.put(id, state);
+            }
+            System.out.println(">>> [SERVER] Đã nạp " + activeAuctions.size() + " phòng đấu giá lên RAM.");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         new Thread(() -> {
             ItemDAO itemDAO = new ItemDAO();
             System.out.println(">>> [Hệ thống] Luồng tự động đóng phiên & quét phạt 24h đã bắt đầu chạy...");
@@ -50,7 +73,7 @@ public class AuctionServer {
 
             while (true) {
                 try {
-                    // 1. Tự động kiểm tra đóng các phiên hết hạn (Chạy liên tục mỗi 10 giây)
+                    // 1. Tự động kiểm tra đóng các phiên hết hạn (Chạy liên tục mỗi 1 giây)
                     boolean hasExpired = itemDAO.checkAndCloseExpiredItems();
                     if (hasExpired) {
                         AuctionServer.broadcast("REFRESH");
@@ -58,13 +81,13 @@ public class AuctionServer {
 
                     // 2. Tự động kiểm tra phạt bùng hàng 24h (Cứ mỗi 30 chu kỳ = 300 giây = 5 phút quét 1 lần)
                     checkViolationCounter++;
-                    if (checkViolationCounter >= 30) {
+                    if (checkViolationCounter >= 300) {
                         System.out.println(">>> [Hệ thống] Đang tự động kiểm tra các đơn hàng quá hạn thanh toán (24h)...");
                         ItemDAO.processExpiredPayments();
                         checkViolationCounter = 0; // Reset bộ đếm
                     }
 
-                    Thread.sleep(10000); // 10 giây quét 1 lần
+                    Thread.sleep(1000); // 10 giây quét 1 lần
                 } catch (InterruptedException e) {
                     System.err.println("Luồng quét bị ngắt: " + e.getMessage());
                     break;

@@ -108,6 +108,7 @@ public class ClientManager {
 
     private void handleSignal(String signal) {
         Platform.runLater(() -> {
+            System.out.println(signal);
             for (UpdateListener listener : listeners) {
                 listener.onUpdateReceived(signal);
             }

@@ -77,6 +77,12 @@ public class AddItemController {
                 return;
             }
 
+            double stepPrice = parseDoubleSafe(txtStep);
+            if (stepPrice <= 0 || stepPrice % 10000 != 0) {
+                showAlert("Thông báo", "Bước giá phải lớn hơn 0 và là bội số của 10,000 VNĐ (Ví dụ: 10,000, 20,000, 50,000...)!");
+                return;
+            }
+
             // 1. Xử lý thời gian kết thúc (endTime)
             String selectedDuration = comboDuration.getValue();
             int hours = 0;
@@ -119,7 +125,12 @@ public class AddItemController {
             }
 
             if (dao.addItem(newItem, currentUserId)) {
-                ClientManager.getInstance().sendCommand("NEW_ITEM");
+                int itemId = newItem.getId();
+                double startPrice = newItem.getStartPrice();
+                double step = newItem.getStep();
+                double binPrice = newItem.getBinPrice();
+
+                ClientManager.getInstance().sendCommand("NEW_ITEM;" + itemId + ";" + startPrice + ";" + step + ";" + binPrice);
                 showAlert("Thành công", "Sản phẩm đã được đăng lên hệ thống!");
                 closeWindow();
             } else {

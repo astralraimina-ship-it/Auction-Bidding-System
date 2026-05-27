@@ -2,11 +2,15 @@ package com.auction.database;
 
 import com.auction.common.item.*;
 import com.auction.server.AuctionServer;
+import com.auction.server.AuctionState;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import java.sql.*;
 import java.util.HashMap;
 import java.util.Map;
+
+import static com.auction.server.AuctionServer.activeAuctions;
+import static com.auction.server.AuctionServer.activeAutoBids;
 
 public class ItemDAO {
 
@@ -84,12 +88,21 @@ public class ItemDAO {
     // --- 7. Thêm sản phẩm ---
     public boolean addItem(Item item, int sellerId) {
         String sql = "INSERT INTO items (name, description, startPrice, binPrice, step, category, end_time, status, brand, warranty, state, artist, medium, modelYear, engineType, age, mileage, seller_id, payment_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')";
-        try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, item.getName()); ps.setString(2, item.getDescription()); ps.setDouble(3, item.getStartPrice());
             ps.setDouble(4, item.getBinPrice()); ps.setDouble(5, item.getStep()); ps.setString(6, item.getCategory());
             ps.setTimestamp(7, item.getEndTime()); ps.setString(8, item.getStatus());
             setSpecificData(ps, item); ps.setInt(18, sellerId);
-            return ps.executeUpdate() > 0;
+            if (ps.executeUpdate() > 0) {
+                try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
+                    if (generatedKeys.next()) {
+                        int generatedId = generatedKeys.getInt(1);
+                        item.setId(generatedId); // 👈 Gán ID vào đây (Đảm bảo class Item của bạn đã có hàm setId)
+                        return true;
+                    }
+                }
+            }
+            return false;
         } catch (Exception e) { e.printStackTrace(); return false; }
     }
 
@@ -164,6 +177,8 @@ public class ItemDAO {
                             if (rows > 0) {
                                 System.out.println(">>> [DB] Sản phẩm ID " + itemId + " đã kết thúc -> Xác định được người thắng.");
                                 hasChanges = true;
+                                activeAuctions.remove(itemId);
+                                activeAutoBids.remove(itemId);
                                 continue; // Đã xử lý xong sản phẩm này, chuyển sang sản phẩm tiếp theo
                             }
                         }
@@ -176,6 +191,8 @@ public class ItemDAO {
                             if (rows > 0) {
                                 System.out.println(">>> [DB] Sản phẩm ID " + itemId + " đã kết thúc -> Không ai đấu giá (HỦY PHIÊN).");
                                 hasChanges = true;
+                                activeAuctions.remove(itemId);
+                                activeAutoBids.remove(itemId);
                             }
                         }
                     }
@@ -242,5 +259,24 @@ public class ItemDAO {
                 else { conn.rollback(); return false; }
             }
         } catch (Exception e) { e.printStackTrace(); return false; }
+    }
+    public void createAuctionState(){
+        try (java.sql.Connection conn = com.auction.database.DBContext.getConnection();
+             java.sql.PreparedStatement ps = conn.prepareStatement("SELECT id, current_price, step, binPrice FROM items WHERE status = 'OPEN'");
+             java.sql.ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                int id = rs.getInt("id");
+                double startPrice = rs.getDouble("current_price"); // Lấy giá hiện hành
+                double step = rs.getDouble("step");
+                double binPrice = rs.getDouble("binPrice");
+
+                // Khởi tạo Trọng tài cho từng món hàng đang bán
+                AuctionState state = new AuctionState(id, startPrice, step, binPrice);
+                activeAuctions.put(id, state);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

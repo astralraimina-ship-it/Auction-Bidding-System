@@ -35,26 +35,23 @@
                                     <font><Font name="System Bold" size="13.0" /></font>
                                 </Label>
 
+                                <VBox spacing="5.0">
+                                    <children>
+                                        <Label text="Ngưỡng dừng tối đa (Hệ thống sẽ dừng khi giá chạm mốc này):" style="-fx-font-size: 11px;" />
+                                        <TextField fx:id="txtStopPrice" prefHeight="35.0" promptText="Ví dụ: 5000000" />
+                                    </children>
+                                </VBox>
+
                                 <HBox spacing="10.0">
                                     <children>
-                                        <VBox HBox.hgrow="ALWAYS" spacing="5.0">
-                                            <children>
-                                                <Label text="Bước nhảy Auto (VNĐ):" style="-fx-font-size: 11px;" />
-                                                <TextField fx:id="txtAutoStep" prefHeight="35.0" promptText="Ví dụ: 20000" />
-                                            </children>
-                                        </VBox>
-                                        <VBox HBox.hgrow="ALWAYS" spacing="5.0">
-                                            <children>
-                                                <Label text="Ngưỡng dừng tối đa:" style="-fx-font-size: 11px;" />
-                                                <TextField fx:id="txtStopPrice" prefHeight="35.0" promptText="Ví dụ: 500000" />
-                                            </children>
-                                        </VBox>
+                                        <Button fx:id="btnAutoBidSetup" HBox.hgrow="ALWAYS" maxWidth="Infinity" onAction="#handleAutoBidSetup" prefHeight="40.0" style="-fx-background-color: #e67e22;" text="BẬT AUTO-BID" textFill="white">
+                                            <font><Font name="System Bold" size="12.0" /></font>
+                                        </Button>
+                                        <Button fx:id="btnStopAutoBid" disable="true" HBox.hgrow="ALWAYS" maxWidth="Infinity" onAction="#handleStopAutoBid" prefHeight="40.0" style="-fx-background-color: #e74c3c;" text="DỪNG AUTO-BID" textFill="white">
+                                            <font><Font name="System Bold" size="12.0" /></font>
+                                        </Button>
                                     </children>
                                 </HBox>
-
-                                <Button fx:id="btnAutoBidSetup" maxWidth="Infinity" onAction="#handleAutoBidSetup" prefHeight="40.0" style="-fx-background-color: #e67e22;" text="KÍCH HOẠT AUTO-BID" textFill="white">
-                                    <font><Font name="System Bold" size="14.0" /></font>
-                                </Button>
 
                                 <Separator />
 

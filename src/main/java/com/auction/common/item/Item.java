@@ -39,15 +39,13 @@ public abstract class Item implements Serializable {
         this.endTime = endTime;
         this.status = status;
         this.paymentStatus = paymentStatus;
-
-        System.out.println(status);
-        System.out.println(paymentStatus);
     }
 
     public abstract String getItemDetails();
 
     // Getters & Setters
     public int getId() { return id; }
+    public void setId(int newId) { this.id = newId;}
     public String getName() { return name; }
     public String getDescription() { return description; }
     public double getStartPrice() { return startPrice; }

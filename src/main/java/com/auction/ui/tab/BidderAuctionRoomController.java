@@ -13,14 +13,12 @@ import java.util.Optional;
 public class BidderAuctionRoomController implements ClientManager.UpdateListener {
     @FXML private Label lblProductName, lblCurrentPrice, lblStep, lblBinPrice;
     @FXML private TextField txtBidInput;
-
-    // ĐÃ BỔ SUNG: Khai báo 2 ô nhập liệu trực tiếp từ giao diện FXML mới
-    @FXML private TextField txtAutoStep;
-    @FXML private TextField txtStopPrice;
+    @FXML private TextField txtStopPrice; // Chỉ giữ lại ô nhập ngưỡng dừng
 
     @FXML private TextArea txtAreaLog;
     @FXML private Button btnPlaceBid;
-    @FXML private Button btnAutoBidSetup; // Nút màu cam "KÍCH HOẠT AUTO-BID" của bạn
+    @FXML private Button btnAutoBidSetup;
+    @FXML private Button btnStopAutoBid; // 🔥 THÊM MỚI: Nút dừng Auto màu đỏ từ FXML
 
     private Item currentItem;
     private final BidDAO bidDAO = new BidDAO();
@@ -38,14 +36,12 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
         lblStep.setText("Bước giá tối thiểu: " + String.format("%,.0f", item.getStep()) + " VNĐ");
         lblBinPrice.setText("Giá mua đứt: " + String.format("%,.0f", item.getBinPrice()) + " VNĐ");
 
-        // ĐÃ BỔ SUNG: Gợi ý sẵn (PromptText) số tiền hợp lệ vào 2 ô nhập để người dùng dễ nhìn
-        if (txtAutoStep != null) txtAutoStep.setPromptText("Ví dụ: " + String.format("%.0f", item.getStep()));
         if (txtStopPrice != null) txtStopPrice.setPromptText("Ví dụ: " + String.format("%.0f", item.getBinPrice()));
 
         manualRefresh();
         loadHistoryFromDatabase();
 
-        // ĐĂNG KÝ LISTENER AN TOÀN (Dùng 'this' vì class đã implement UpdateListener)
+        ClientManager.getInstance().sendCommand("CHECK_AUTOBID_STATUS;" + item.getId() + ";" + currentUserId);
         ClientManager.getInstance().addUpdateListener(this);
     }
 
@@ -54,7 +50,6 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
      */
     private void loadHistoryFromDatabase() {
         if (currentItem == null) return;
-
         try {
             List<String> logs = bidDAO.getBidHistoryText(currentItem.getId());
             txtAreaLog.clear();
@@ -62,57 +57,62 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
                 txtAreaLog.appendText(log + "\n");
             }
         } catch (Exception e) {
-            showError("Không thể tải dữ liệu từ cơ sở dữ liệu Cloud. Vui lòng kiểm tra kết nối Internet!");
+            showError("Không thể tải dữ liệu từ cơ sở dữ liệu. Vui lòng kiểm tra kết nối Internet!");
             e.printStackTrace();
         }
     }
 
     /**
-     * ĐÃ SỬA ĐỔI TRIỆT ĐỂ: Lấy dữ liệu trực tiếp từ giao diện, XÓA BỎ HỘP THOẠI DIALOG RÁC.
-     * Ủy quyền tác vụ đẩy giá lên Server để chạy độc lập khi Client đóng phòng.
+     * XỬ LÝ KÍCH HOẠT AUTO-BID & KHÓA ĐẤU GIÁ THỦ CÔNG
      */
     @FXML
     private void handleAutoBidSetup() {
         if (currentItem == null) return;
 
-        // 1. Đọc dữ liệu trực tiếp từ 2 ô nhập trên UI
-        String stepStr = txtAutoStep.getText().trim();
         String stopStr = txtStopPrice.getText().trim();
 
-        // Kiểm tra xem người dùng có bỏ trống ô nào không
-        if (stepStr.isEmpty() || stopStr.isEmpty()) {
-            showError("Vui lòng nhập đầy đủ cả Bước nhảy Auto và Ngưỡng dừng tối đa!");
+        if (stopStr.isEmpty()) {
+            showError("Vui lòng nhập Ngưỡng dừng tối đa muốn cài đặt!");
             return;
         }
 
         try {
-            double autoStep = Double.parseDouble(stepStr);
             double stopPrice = Double.parseDouble(stopStr);
+            double currentMax = bidDAO.getCurrentMaxBid(currentItem.getId(), currentItem.getStartPrice());
 
-            // RÀNG BUỘC 1: Bước nhảy tự động phải LỚN HƠN HOẶC BẰNG bước nhảy của sản phẩm
-            if (autoStep < currentItem.getStep()) {
-                showError("Lỗi cấu hình: Bước nhảy tự động phải LỚN HƠN HOẶC BẰNG bước nhảy gốc của sản phẩm (" + String.format("%,.0f", currentItem.getStep()) + " VNĐ)!");
-                return;
-            }
-
-            // RÀNG BUỘC 2: Ngưỡng dừng không được lớn hơn bin price (giá mua đứt)
+            // RÀNG BUỘC 1: Ngưỡng dừng không được lớn hơn giá mua đứt
             if (stopPrice > currentItem.getBinPrice()) {
                 showError("Lỗi cấu hình: Ngưỡng dừng tối đa không được vượt quá Giá mua đứt (" + String.format("%,.0f", currentItem.getBinPrice()) + " VNĐ)!");
                 return;
             }
 
-            // 2. Gửi lệnh cấu hình thẳng lên Server qua Socket trung tâm để Server chịu trách nhiệm lưu trữ chạy ngầm
-            // Cấu trúc chuỗi gửi: SET_AUTOBID;itemId;userId;autoStep;stopPrice
+            // RÀNG BUỘC 2: Ngưỡng dừng không được thấp hơn giá hiện tại
+            if (stopPrice < currentMax) {
+                showError("Lỗi cấu hình: Ngưỡng dừng tối đa không được thấp hơn Giá hiện tại (" + String.format("%,.0f", currentMax) + " VNĐ)!");
+                return;
+            }
+
+            // 💡 GIẢI PHÁP THÔNG MINH: Lấy luôn bước giá tối thiểu của sản phẩm làm bước nhảy Auto mặc định
+            // Điều này giúp giữ nguyên cấu trúc gói tin Server (5 tham số) mà bạn không cần sửa code Server nhận lệnh.
+            double autoStep = currentItem.getStep();
+
+            // Gửi lệnh kích hoạt lên Server
             String cmd = "SET_AUTOBID;" + currentItem.getId() + ";" + currentUserId + ";" + autoStep + ";" + stopPrice;
             ClientManager.getInstance().sendCommand(cmd);
 
-            // Ghi nhận trực tiếp trạng thái lên Nhật ký phòng đấu giá nội bộ
-            logAction("Hệ thống: Đã kích hoạt Auto-Bid thành công (Bước nhảy: "
-                    + String.format("%,.0f", autoStep) + " VNĐ | Ngưỡng dừng: "
-                    + String.format("%,.0f", stopPrice) + " VNĐ). Nhiệm vụ đã giao cho Server xử lý ngầm.");
+            // 🔥 THỰC HIỆN YÊU CẦU: Khóa chặt toàn bộ chức năng đặt giá thủ công và cấu hình
+            txtBidInput.setDisable(true);
+            btnPlaceBid.setDisable(true);
+            txtStopPrice.setDisable(true);
+            btnAutoBidSetup.setDisable(true);
 
-            // 3. Xóa trắng các ô nhập liệu cho sạch giao diện sau khi cài đặt thành công
-            txtAutoStep.clear();
+            // Mở khóa nút Dừng Auto-bid
+            btnStopAutoBid.setDisable(false);
+
+            logAction("Hệ thống: Đã bật chế độ Đấu giá tự động thành công (Theo bước giá gốc: "
+                    + String.format("%,.0f", autoStep) + " VNĐ | Ngưỡng dừng: "
+                    + String.format("%,.0f", stopPrice) + " VNĐ). ĐÃ KHÓA ĐẶT GIÁ THỦ CÔNG!");
+
             txtStopPrice.clear();
 
         } catch (NumberFormatException e) {
@@ -121,8 +121,31 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
     }
 
     /**
-     * Triển khai hàm onUpdateReceived từ interface UpdateListener
-     * Tất cả các tín hiệu real-time tự động đổ về đây và xử lý an toàn trong Platform.runLater
+     * 🔥 THÊM MỚI: Xử lý nút HỦY/DỪNG chế độ đấu giá tự động
+     */
+    @FXML
+    private void handleStopAutoBid() {
+        if (currentItem == null) return;
+
+        // Gửi lệnh tắt chế độ Auto-bid của User này đối với sản phẩm này lên Server
+        // Định dạng chuỗi gửi tùy thuộc hệ thống Server của bạn, thông thường là: STOP_AUTOBID;itemId;userId
+        String cmd = "STOP_AUTOBID;" + currentItem.getId() + ";" + currentUserId;
+        ClientManager.getInstance().sendCommand(cmd);
+
+        // 🔥 THỰC HIỆN YÊU CẦU: Mở khóa lại toàn bộ chức năng đặt giá thủ công cho người dùng
+        txtBidInput.setDisable(false);
+        btnPlaceBid.setDisable(false);
+        txtStopPrice.setDisable(false);
+        btnAutoBidSetup.setDisable(false);
+
+        // Khóa lại chính nó (Nút dừng)
+        btnStopAutoBid.setDisable(true);
+
+        logAction("Hệ thống: Đã tắt chế độ Auto-Bid. Bạn có thể tự đặt giá thủ công trở lại.");
+    }
+
+    /**
+     * Tất cả các tín hiệu real-time tự động đổ về đây
      */
     @Override
     public void onUpdateReceived(String signal) {
@@ -136,14 +159,35 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
             else if (signal.equalsIgnoreCase("Closed")) {
                 logAction("Hệ thống: Phiên đấu giá đã kết thúc.");
 
-                // Khóa toàn bộ các ô nhập và nút bấm liên quan khi phòng đã đóng cửa
+                // Khóa sạch toàn bộ khi phòng đấu giá đóng cửa hẳn
                 txtBidInput.setDisable(true);
                 btnPlaceBid.setDisable(true);
                 if (btnAutoBidSetup != null) btnAutoBidSetup.setDisable(true);
-                if (txtAutoStep != null) txtAutoStep.setDisable(true);
+                if (btnStopAutoBid != null) btnStopAutoBid.setDisable(true); // Khóa luôn nút dừng
                 if (txtStopPrice != null) txtStopPrice.setDisable(true);
 
                 manualRefresh();
+            }
+            else if (signal.startsWith("AUTOBID_STATUS")) {
+                String[] part = signal.split(";");
+                String status = part[1];
+                int userId = Integer.parseInt(part[2]);
+                if (currentUserId == userId){
+                    if (status.equals("ACTIVE")){
+                        txtBidInput.setDisable(true);
+                        btnPlaceBid.setDisable(true);
+                        txtStopPrice.setDisable(true);
+                        btnAutoBidSetup.setDisable(true);
+                        btnStopAutoBid.setDisable(false); // Hiện nút dừng
+                    }
+                    else if (status.equals("INACTIVE")) {
+                        txtBidInput.setDisable(false);
+                        btnPlaceBid.setDisable(false);
+                        txtStopPrice.setDisable(false);
+                        btnAutoBidSetup.setDisable(false);
+                        btnStopAutoBid.setDisable(true); // Ẩn nút dừng
+                    }
+                }
             }
             else if (signal.startsWith("Notify;")) {
                 logAction(signal.substring(7));
@@ -167,9 +211,6 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
         });
     }
 
-    /**
-     * Nhận ID và Username của người dùng từ Dashboard
-     */
     public void setUserId(int id) {
         this.currentUserId = id;
     }
