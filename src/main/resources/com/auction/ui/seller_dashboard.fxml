@@ -21,7 +21,6 @@
             <Label text="Kênh quản lý sản phẩm người bán" style="-fx-font-size: 13px; -fx-text-fill: #7f8c8d;" />
         </VBox>
 
-        <!-- NÚT LÀM MỚI MỚI THÊM TƯƠNG TỰ BÊN ADMIN/BIDDER -->
         <Button fx:id="btnRefresh" text="🔄 Làm mới" onAction="#refreshAll"
                 style="-fx-background-color: #f39c12; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand; -fx-margin-left: 20;" />
 
@@ -47,6 +46,8 @@
 
     <TableView fx:id="tableItems" VBox.vgrow="ALWAYS" style="-fx-font-size: 14px;">
         <columns>
+            <TableColumn fx:id="colImage" text="Ảnh" prefWidth="80" style="-fx-alignment: CENTER;" />
+
             <TableColumn fx:id="colName" text="Tên sản phẩm" prefWidth="180" />
             <TableColumn fx:id="colCategory" text="Loại" prefWidth="80" style="-fx-alignment: CENTER;" />
             <TableColumn fx:id="colDetails" text="Mô tả hàng hóa" prefWidth="250" />

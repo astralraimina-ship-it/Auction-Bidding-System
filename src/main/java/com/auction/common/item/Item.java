@@ -23,9 +23,13 @@ public abstract class Item implements Serializable {
     private String status;
     private String paymentStatus;
 
+    // 🔥 THÊM MỚI: Trường lưu tên file/đường dẫn ảnh
+    private String imagePath;
+
+    // 🔥 CẬP NHẬT CONSTRUCTOR: Nhận thêm tham số imagePath ở cuối
     public Item(int id, String name, String description, double startPrice, double binPrice,
                 double currentPrice, double winPrice, double step, String sellerName,
-                String category, Timestamp endTime, String status, String paymentStatus) {
+                String category, Timestamp endTime, String status, String paymentStatus, String imagePath) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -39,6 +43,7 @@ public abstract class Item implements Serializable {
         this.endTime = endTime;
         this.status = status;
         this.paymentStatus = paymentStatus;
+        this.imagePath = imagePath; // Khởi tạo ảnh
     }
 
     public abstract String getItemDetails();
@@ -69,4 +74,8 @@ public abstract class Item implements Serializable {
     public void setStatus(String status) { this.status = status; }
     public String getPaymentStatus() { return paymentStatus; }
     public void setPaymentStatus(String paymentStatus) { this.paymentStatus = paymentStatus; }
+
+    // 🔥 THÊM MỚI: Getter & Setter cho ảnh
+    public String getImagePath() { return imagePath; }
+    public void setImagePath(String imagePath) { this.imagePath = imagePath; }
 }

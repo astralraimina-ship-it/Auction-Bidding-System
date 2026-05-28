@@ -86,12 +86,23 @@ public class ItemDAO {
 
     // --- 7. Thêm sản phẩm ---
     public boolean addItem(Item item, int sellerId) {
-        String sql = "INSERT INTO items (name, description, startPrice, binPrice, step, category, end_time, status, brand, warranty, state, artist, medium, modelYear, engineType, age, mileage, seller_id, payment_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')";
+        // 🔥 ĐÃ SỬA: Thêm cột image_path vào câu lệnh SQL INSERT và thêm dấu '?' cuối cùng
+        String sql = "INSERT INTO items (name, description, startPrice, binPrice, step, category, end_time, status, " +
+                "brand, warranty, state, artist, medium, modelYear, engineType, age, mileage, seller_id, payment_status, image_path) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)";
+
         try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, item.getName()); ps.setString(2, item.getDescription()); ps.setDouble(3, item.getStartPrice());
             ps.setDouble(4, item.getBinPrice()); ps.setDouble(5, item.getStep()); ps.setString(6, item.getCategory());
             ps.setTimestamp(7, item.getEndTime()); ps.setString(8, item.getStatus());
-            setSpecificData(ps, item); ps.setInt(18, sellerId);
+
+            setSpecificData(ps, item); // Hàm này nạp dữ liệu từ vị trí số 9 đến 17
+
+            ps.setInt(18, sellerId);
+
+            // 🔥 THÊM MỚI: Gán chuỗi tên file ảnh vào tham số số 19 (Nếu null thì lưu 'default.png')
+            ps.setString(19, item.getImagePath() != null ? item.getImagePath() : "default.png");
+
             if (ps.executeUpdate() > 0) {
                 try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
                     if (generatedKeys.next()) {
@@ -130,6 +141,9 @@ public class ItemDAO {
         common.put("status", rs.getString("status"));
         common.put("sellerName", rs.getString("seller_name"));
         common.put("paymentStatus", columnExists(rs, "payment_status") ? rs.getString("payment_status") : "PENDING");
+
+        // 🔥 THÊM MỚI: Đọc cột image_path từ DB đưa vào map common dữ liệu để ItemFactory xử lý
+        common.put("imagePath", columnExists(rs, "image_path") ? rs.getString("image_path") : "default.png");
 
         Map<String, Object> specific = new HashMap<>();
         specific.put("brand", rs.getString("brand")); specific.put("warranty", rs.getString("warranty")); specific.put("state", rs.getString("state"));

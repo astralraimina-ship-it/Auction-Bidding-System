@@ -11,11 +11,11 @@ public class Vehicle extends Item {
     private int age;
     private double mileage;
 
-    // ĐÃ SỬA: Thêm double currentPrice vào constructor và super()
+    // ĐÃ SỬA: Thêm String imagePath vào constructor và truyền lên super()
     public Vehicle(int id, String name, String description, double startPrice, double binPrice, double currentPrice, double step,
                    String sellerName, Timestamp endTime, String status, String paymentStatus,
-                   String brand, int modelYear, String engineType, String state, int age, double mileage, double winPrice) {
-        super(id, name, description, startPrice, binPrice, currentPrice, winPrice, step, sellerName, "VEHICLE", endTime, status, paymentStatus);
+                   String brand, int modelYear, String engineType, String state, int age, double mileage, double winPrice, String imagePath) {
+        super(id, name, description, startPrice, binPrice, currentPrice, winPrice, step, sellerName, "VEHICLE", endTime, status, paymentStatus, imagePath);
         this.brand = brand;
         this.modelYear = modelYear;
         this.engineType = engineType;

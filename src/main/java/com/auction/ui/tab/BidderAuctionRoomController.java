@@ -7,18 +7,26 @@ import com.auction.network.ClientManager;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+
+import java.io.ByteArrayInputStream;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 
 public class BidderAuctionRoomController implements ClientManager.UpdateListener {
     @FXML private Label lblProductName, lblCurrentPrice, lblStep, lblBinPrice;
     @FXML private TextField txtBidInput;
-    @FXML private TextField txtStopPrice; // Chỉ giữ lại ô nhập ngưỡng dừng
+    @FXML private TextField txtStopPrice;
 
     @FXML private TextArea txtAreaLog;
     @FXML private Button btnPlaceBid;
     @FXML private Button btnAutoBidSetup;
-    @FXML private Button btnStopAutoBid; // 🔥 THÊM MỚI: Nút dừng Auto màu đỏ từ FXML
+    @FXML private Button btnStopAutoBid;
+
+    // Khung hiển thị ảnh sản phẩm
+    @FXML private ImageView itemImageView;
 
     private Item currentItem;
     private final BidDAO bidDAO = new BidDAO();
@@ -38,11 +46,48 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
 
         if (txtStopPrice != null) txtStopPrice.setPromptText("Ví dụ: " + String.format("%.0f", item.getBinPrice()));
 
+        // 🔥 ĐÃ SỬA: Xử lý hiển thị ảnh mặc định từ resources nếu trống ảnh
+        if (itemImageView != null) {
+            String imagePath = item.getImagePath();
+            if (imagePath == null || imagePath.isEmpty() || imagePath.equals("default.png")) {
+                loadDefaultImage(); // Gọi hàm load ảnh mặc định
+            } else {
+                // Tận dụng Cache tĩnh từ SellerController để tránh tải lại ảnh
+                if (SellerController.imageCache.containsKey(imagePath)) {
+                    itemImageView.setImage(SellerController.imageCache.get(imagePath));
+                } else {
+                    // Nếu chưa có ảnh trong RAM, gửi lệnh tải từ Server
+                    ClientManager.getInstance().sendCommand("GET_IMAGE;" + imagePath);
+                }
+            }
+        }
+
         manualRefresh();
         loadHistoryFromDatabase();
 
         ClientManager.getInstance().sendCommand("CHECK_AUTOBID_STATUS;" + item.getId() + ";" + currentUserId);
         ClientManager.getInstance().addUpdateListener(this);
+    }
+
+    /**
+     * 🔥 THÊM MỚI: Hàm nạp ảnh mặc định từ resources (An toàn, chống Crash)
+     */
+    private void loadDefaultImage() {
+        if (itemImageView == null) return;
+        try {
+            // Thử tìm tại thư mục src/main/resources/images/default.png
+            Image defaultImg = new Image(getClass().getResourceAsStream("/images/default.png"));
+            itemImageView.setImage(defaultImg);
+        } catch (Exception e) {
+            try {
+                // Fallback: Thử tìm tại thư mục src/main/resources/com/auction/ui/images/default.png theo package cấu trúc của bạn
+                Image defaultImg = new Image(getClass().getResourceAsStream("/images/default.png"));
+                itemImageView.setImage(defaultImg);
+            } catch (Exception ex) {
+                System.out.println("Lỗi: Không tìm thấy file default.png ở cả 2 đường dẫn tài nguyên. Khung ảnh sẽ để trống.");
+                itemImageView.setImage(null);
+            }
+        }
     }
 
     /**
@@ -80,32 +125,26 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
             double stopPrice = Double.parseDouble(stopStr);
             double currentMax = bidDAO.getCurrentMaxBid(currentItem.getId(), currentItem.getStartPrice());
 
-            // RÀNG BUỘC 1: Ngưỡng dừng không được lớn hơn giá mua đứt
             if (stopPrice > currentItem.getBinPrice()) {
                 showError("Lỗi cấu hình: Ngưỡng dừng tối đa không được vượt quá Giá mua đứt (" + String.format("%,.0f", currentItem.getBinPrice()) + " VNĐ)!");
                 return;
             }
 
-            // RÀNG BUỘC 2: Ngưỡng dừng không được thấp hơn giá hiện tại
             if (stopPrice < currentMax) {
                 showError("Lỗi cấu hình: Ngưỡng dừng tối đa không được thấp hơn Giá hiện tại (" + String.format("%,.0f", currentMax) + " VNĐ)!");
                 return;
             }
 
-            // 💡 GIẢI PHÁP THÔNG MINH: Lấy luôn bước giá tối thiểu của sản phẩm làm bước nhảy Auto mặc định
             double autoStep = currentItem.getStep();
 
-            // Gửi lệnh kích hoạt lên Server
             String cmd = "SET_AUTOBID;" + currentItem.getId() + ";" + currentUserId + ";" + autoStep + ";" + stopPrice;
             ClientManager.getInstance().sendCommand(cmd);
 
-            // 🔥 THỰC HIỆN YÊU CẦU: Khóa chặt toàn bộ chức năng đặt giá thủ công và cấu hình
             txtBidInput.setDisable(true);
             btnPlaceBid.setDisable(true);
             txtStopPrice.setDisable(true);
             btnAutoBidSetup.setDisable(true);
 
-            // Mở khóa nút Dừng Auto-bid
             btnStopAutoBid.setDisable(false);
 
             logAction("Hệ thống: Đã bật chế độ Đấu giá tự động thành công (Theo bước giá gốc: "
@@ -120,7 +159,7 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
     }
 
     /**
-     * 🔥 Xử lý nút HỦY/DỪNG chế độ đấu giá tự động
+     * Xử lý nút HỦY/DỪNG chế độ đấu giá tự động
      */
     @FXML
     private void handleStopAutoBid() {
@@ -129,13 +168,11 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
         String cmd = "STOP_AUTOBID;" + currentItem.getId() + ";" + currentUserId;
         ClientManager.getInstance().sendCommand(cmd);
 
-        // 🔥 THỰC HIỆN YÊU CẦU: Mở khóa lại toàn bộ chức năng đặt giá thủ công cho người dùng
         txtBidInput.setDisable(false);
         btnPlaceBid.setDisable(false);
         txtStopPrice.setDisable(false);
         btnAutoBidSetup.setDisable(false);
 
-        // Khóa lại chính nó (Nút dừng)
         btnStopAutoBid.setDisable(true);
 
         logAction("Hệ thống: Đã tắt chế độ Auto-Bid. Bạn có thể tự đặt giá thủ công trở lại.");
@@ -150,22 +187,45 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
             if (signal.equalsIgnoreCase("REFRESH")) {
                 manualRefresh();
             }
+            // Xử lý khi Server gửi ảnh về
+            else if (signal.startsWith("IMAGE_RESPONSE;")) {
+                String[] parts = signal.split(";", 3);
+                if (parts.length == 3) {
+                    String fileName = parts[1];
+                    String base64 = parts[2];
+
+                    if (currentItem != null && fileName.equals(currentItem.getImagePath())) {
+                        try {
+                            byte[] decoded = Base64.getDecoder().decode(base64);
+                            ByteArrayInputStream bis = new ByteArrayInputStream(decoded);
+                            Image img = new Image(bis);
+
+                            SellerController.imageCache.put(fileName, img);
+                            if (itemImageView != null) {
+                                itemImageView.setImage(img);
+                            }
+                        } catch (Exception e) {
+                            System.out.println("Lỗi giải mã ảnh từ server: " + e.getMessage());
+                            // 🔥 ĐÃ SỬA: Nếu giải mã ảnh lỗi (file hỏng, mất mạng giữa chừng), chuyển sang ảnh mặc định
+                            loadDefaultImage();
+                        }
+                    }
+                }
+            }
             else if (signal.equalsIgnoreCase("AntiSnipe")) {
                 handleAntiSnipe(currentItem);
             }
             else if (signal.equalsIgnoreCase("Closed")) {
                 logAction("Hệ thống: Phiên đấu giá đã kết thúc.");
 
-                // Khóa sạch toàn bộ khi phòng đấu giá đóng cửa hẳn
                 txtBidInput.setDisable(true);
                 btnPlaceBid.setDisable(true);
                 if (btnAutoBidSetup != null) btnAutoBidSetup.setDisable(true);
-                if (btnStopAutoBid != null) btnStopAutoBid.setDisable(true); // Khóa luôn nút dừng
+                if (btnStopAutoBid != null) btnStopAutoBid.setDisable(true);
                 if (txtStopPrice != null) txtStopPrice.setDisable(true);
 
                 manualRefresh();
             }
-            // ĐÃ SỬA: Tiếp nhận thêm tham số Budget từ Server gửi về và đưa vào logAction
             else if (signal.startsWith("AUTOBID_STATUS")) {
                 String[] part = signal.split(";");
                 String status = part[1];
@@ -177,9 +237,8 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
                         btnPlaceBid.setDisable(true);
                         txtStopPrice.setDisable(true);
                         btnAutoBidSetup.setDisable(true);
-                        btnStopAutoBid.setDisable(false); // Hiện nút dừng
+                        btnStopAutoBid.setDisable(false);
 
-                        // KIỂM TRA & HIỂN THỊ BUDGET (LỖI 3)
                         if (part.length > 3) {
                             double budget = Double.parseDouble(part[3]);
                             logAction("Hệ thống: Bạn đang trong trạng thái TỰ ĐỘNG ĐẤU GIÁ với ngân sách tối đa "
@@ -191,7 +250,7 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
                         btnPlaceBid.setDisable(false);
                         txtStopPrice.setDisable(false);
                         btnAutoBidSetup.setDisable(false);
-                        btnStopAutoBid.setDisable(true); // Ẩn nút dừng
+                        btnStopAutoBid.setDisable(true);
 
                         logAction("Hệ thống: Chế độ Autobid của bạn hiện đang tắt / Đã bị hủy.");
                     }

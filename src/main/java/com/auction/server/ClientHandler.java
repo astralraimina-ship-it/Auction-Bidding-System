@@ -5,10 +5,14 @@ import com.auction.database.ItemDAO;
 import com.auction.database.UserDAO;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.util.Base64;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.auction.server.observer.BidObserver;
@@ -66,20 +70,17 @@ public class ClientHandler implements Runnable, BidObserver {
                                 state.setManualTopBidder(userId, bidAmount);
                                 AuctionServer.activeAutoBids.get(itemId).remove(highestBidderId);
 
-                                // Đặt giá tay vượt qua giá trần Auto cũ -> Hủy trạng thái Auto của người cũ dưới DB
                                 bidDAO.deactivateAutoBid(itemId, highestBidderId);
 
                                 this.sendMessage("AUTOBID_STATUS;INACTIVE;" + userId);
                                 bidDAO.placeBid(itemId, userId, bidAmount);
                                 AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + userId + ";" + bidAmount);
 
-                                // 🔥 THÊM: Kiểm tra nếu giá đặt tay vọt thẳng qua hoặc bằng giá BIN luôn
                                 if (state.isBin()){
                                     closeAuction(itemId, userId);
                                 }
                             }
                             else if (bidAmount == maxAutoBudget) {
-                                // 🔥 SỬA: Người đặt tay bằng đúng giá trần Autobid (bao gồm cả giá BIN) -> Ưu tiên Autobid đặt trước ăn luôn!
                                 state.setCurrentPrice(maxAutoBudget);
                                 bidDAO.placeBid(itemId, highestBidderId, maxAutoBudget);
                                 AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + highestBidderId + ";" + maxAutoBudget);
@@ -140,12 +141,10 @@ public class ClientHandler implements Runnable, BidObserver {
                             continue;
                         }
 
-                        // Nếu chính người này đang giữ đỉnh, chỉ cấu hình Budget, GIỮ NGUYÊN GIÁ hiện tại
                         if (highestBidderId == userId) {
                             state.setAutoTopBidder(userId, currentPrice, stopPrice);
                             AuctionServer.activeAutoBids.computeIfAbsent(itemId, k -> new ConcurrentHashMap<>()).put(userId, stopPrice);
 
-                            // Lưu/Cập nhật cấu hình Auto bền vững xuống Database
                             bidDAO.saveOrUpdateAutoBid(itemId, userId, stopPrice);
 
                             this.sendMessage("AUTOBID_STATUS;ACTIVE;" + userId + ";" + stopPrice);
@@ -268,7 +267,7 @@ public class ClientHandler implements Runnable, BidObserver {
                     }
                 }
                 // ================================================================
-                // 6. 🔥 XỬ LÝ MUA NGAY (BIN) TỪ BUTTON CLIENT GỬI LÊN
+                // 6. XỬ LÝ MUA NGAY (BIN) TỪ BUTTON CLIENT GỬI LÊN
                 // ================================================================
                 else if (request.startsWith("BIN")){
                     String[] part = request.split(";");
@@ -283,7 +282,6 @@ public class ClientHandler implements Runnable, BidObserver {
                     }
 
                     synchronized (state) {
-                        // 🔥 SỬA: Nếu đang có người đặt Autobid với giá trần >= giá BIN -> Ưu tiên người đặt trước ăn luôn
                         if (state.isTopBidderAuto()) {
                             double maxAutoBudget = state.getTopAutoMaxBudget();
                             int highestBidderId = state.getHighestBidderId();
@@ -318,7 +316,6 @@ public class ClientHandler implements Runnable, BidObserver {
 
                     if (items != null && !items.isEmpty()) {
                         for (com.auction.common.item.Item item : items) {
-                            // ĐÃ SỬA: Bổ sung step và binPrice vào gói tin trả về
                             sb.append(item.getId()).append(",")
                                     .append(item.getName()).append(",")
                                     .append(item.getCurrentPrice()).append(",")
@@ -334,6 +331,55 @@ public class ClientHandler implements Runnable, BidObserver {
 
                     this.sendMessage(sb.toString());
                 }
+                // ================================================================
+                // 8. 🔥 THÊM MỚI: XỬ LÝ ẢNH (UPLOAD & DOWNLOAD TỪ CLIENT)
+                // ================================================================
+                else if (request.startsWith("UPLOAD_IMAGE;")) {
+                    String[] parts = request.split(";", 3); // Cắt chuỗi thành 3 phần: UPLOAD_IMAGE, filename, base64
+                    if (parts.length == 3) {
+                        String fileName = parts[1];
+                        String base64Data = parts[2];
+                        try {
+                            // Tạo thư mục "images" nếu chưa có
+                            File dir = new File("images");
+                            if (!dir.exists()) dir.mkdirs();
+
+                            // Giải mã chuỗi base64 thành mảng byte và ghi ra ổ cứng
+                            byte[] decodedBytes = Base64.getDecoder().decode(base64Data);
+                            File imageFile = new File(dir, fileName);
+                            try (FileOutputStream fos = new FileOutputStream(imageFile)) {
+                                fos.write(decodedBytes);
+                            }
+                            System.out.println(">>> [SERVER] Đã lưu ảnh thành công: " + fileName);
+                        } catch (Exception e) {
+                            System.out.println(">>> [SERVER] Lỗi lưu ảnh: " + e.getMessage());
+                        }
+                    }
+                }
+                else if (request.startsWith("GET_IMAGE;")) {
+                    String[] parts = request.split(";");
+                    if (parts.length >= 2) {
+                        String fileName = parts[1];
+                        try {
+                            // Tìm file ảnh trong thư mục "images"
+                            File imageFile = new File("images", fileName);
+                            if (imageFile.exists()) {
+                                // Đọc lên, mã hóa thành base64 và gửi trả Client
+                                byte[] fileBytes = Files.readAllBytes(imageFile.toPath());
+                                String base64Data = Base64.getEncoder().encodeToString(fileBytes);
+                                this.sendMessage("IMAGE_RESPONSE;" + fileName + ";" + base64Data);
+                                System.out.println(">>> [SERVER] Đã gửi ảnh cho client: " + fileName);
+                            } else {
+                                System.out.println(">>> [SERVER] Không tìm thấy ảnh yêu cầu: " + fileName);
+                            }
+                        } catch (Exception e) {
+                            System.out.println(">>> [SERVER] Lỗi đọc/gửi ảnh: " + e.getMessage());
+                        }
+                    }
+                }
+                // ================================================================
+                // 9. CÁC LỆNH KHÁC
+                // ================================================================
                 else if (request.startsWith("PAY")) {
                     String[] part = request.split(";");
                     int itemId = Integer.parseInt(part[1]);
@@ -361,13 +407,7 @@ public class ClientHandler implements Runnable, BidObserver {
                     AuctionServer.activeAuctions.put(itemId, new AuctionState(itemId, startPrice, step, binPrice));
                     BidPublisher.getInstance().notifyObservers();
                 }
-                else if (request.equals("NEW_USER")){
-                    BidPublisher.getInstance().notifyObservers();
-                }
-                else if (request.equals("TRANSACTION_UPDATED")){
-                    BidPublisher.getInstance().notifyObservers();
-                }
-                else if (request.equals("UPDATE")){
+                else if (request.equals("NEW_USER") || request.equals("TRANSACTION_UPDATED") || request.equals("UPDATE")){
                     BidPublisher.getInstance().notifyObservers();
                 }
             }

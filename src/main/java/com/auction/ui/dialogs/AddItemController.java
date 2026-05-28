@@ -6,11 +6,20 @@ import com.auction.database.ItemDAO;
 import com.auction.network.ClientManager;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 import java.time.LocalDateTime;
 import java.sql.Timestamp;
+import java.util.Base64;
+import java.util.UUID;
 
 public class AddItemController {
     // --- Các trường dữ liệu chung ---
@@ -22,7 +31,14 @@ public class AddItemController {
     // --- Các trường dữ liệu riêng ---
     @FXML private TextField txtBrand, txtState, txtEngineType, txtMileage, txtArtist, txtWarranty;
 
+    // 🔥 THÊM MỚI: Khung hiển thị ảnh xem trước (Preview)
+    @FXML private ImageView imgPreview;
+
     private int currentUserId; // Đây chính là sellerId
+
+    // 🔥 THÊM MỚI: Các biến lưu thông tin ảnh tạm thời
+    private File selectedImageFile = null;
+    private String finalImageName = "default.png"; // Mặc định nếu không chọn ảnh
 
     @FXML
     public void initialize() {
@@ -63,6 +79,36 @@ public class AddItemController {
         }
     }
 
+    // 🔥 THÊM MỚI: Sự kiện nút "Chọn ảnh sản phẩm"
+    @FXML
+    private void handleSelectImage() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Chọn ảnh sản phẩm đấu giá");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg")
+        );
+
+        Stage stage = (Stage) txtName.getScene().getWindow();
+        File file = fileChooser.showOpenDialog(stage);
+
+        if (file != null) {
+            this.selectedImageFile = file;
+            // Tạo tên file ngẫu nhiên bằng UUID kết hợp đuôi mở rộng cũ để tránh trùng lặp trên Server
+            String ext = file.getName().substring(file.getName().lastIndexOf("."));
+            this.finalImageName = UUID.randomUUID().toString() + ext;
+
+            // Hiển thị ảnh xem trước lên ImageView
+            try (FileInputStream fis = new FileInputStream(file)) {
+                Image img = new Image(fis);
+                if (imgPreview != null) {
+                    imgPreview.setImage(img);
+                }
+            } catch (Exception e) {
+                System.out.println("Lỗi hiển thị ảnh xem trước: " + e.getMessage());
+            }
+        }
+    }
+
     // Quan trọng: Phải gọi hàm này từ SellerController khi mở Dialog
     public void setUserId(int userId) {
         this.currentUserId = userId;
@@ -99,11 +145,14 @@ public class AddItemController {
             commonData.put("name", txtName.getText().trim());
             commonData.put("category", comboCategory.getValue());
             commonData.put("description", txtDescription.getText().trim());
-            commonData.put("startPrice", parseDoubleSafe(txtStartPrice)); // Khớp key startPrice
-            commonData.put("binPrice", parseDoubleSafe(txtBinPrice));     // Khớp key binPrice
+            commonData.put("startPrice", parseDoubleSafe(txtStartPrice));
+            commonData.put("binPrice", parseDoubleSafe(txtBinPrice));
             commonData.put("step", parseDoubleSafe(txtStep));
-            commonData.put("endTime", endTime);                           // Khớp key endTime
+            commonData.put("endTime", endTime);
             commonData.put("status", "OPEN");
+
+            // 🔥 THÊM MỚI: Truyền đường dẫn/tên file ảnh vào dữ liệu chung cho Factory tạo đối tượng
+            commonData.put("imagePath", finalImageName);
 
             // 3. Thu thập dữ liệu riêng
             Map<String, Object> specificData = new HashMap<>();
@@ -125,6 +174,20 @@ public class AddItemController {
             }
 
             if (dao.addItem(newItem, currentUserId)) {
+                // 🔥 THÊM MỚI: Nếu người dùng có chọn ảnh, tiến hành tải ảnh lên Server thông qua luồng Socket mạng
+                if (selectedImageFile != null && selectedImageFile.exists()) {
+                    try {
+                        byte[] fileBytes = Files.readAllBytes(selectedImageFile.toPath());
+                        String base64String = Base64.getEncoder().encodeToString(fileBytes);
+
+                        // Định dạng chuỗi lệnh gửi: UPLOAD_IMAGE;tên_file;chuỗi_base64
+                        String uploadCmd = "UPLOAD_IMAGE;" + finalImageName + ";" + base64String;
+                        ClientManager.getInstance().sendCommand(uploadCmd);
+                    } catch (Exception imgEx) {
+                        System.out.println("Lỗi chuyển đổi/gửi ảnh lên Server: " + imgEx.getMessage());
+                    }
+                }
+
                 int itemId = newItem.getId();
                 double startPrice = newItem.getStartPrice();
                 double step = newItem.getStep();

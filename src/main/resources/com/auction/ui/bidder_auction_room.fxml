@@ -2,8 +2,9 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.text.*?>
+<?import javafx.scene.image.ImageView?>
 
-<AnchorPane prefHeight="550.0" prefWidth="850.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.auction.ui.tab.BidderAuctionRoomController">
+<AnchorPane prefHeight="650.0" prefWidth="900.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.auction.ui.tab.BidderAuctionRoomController">
     <children>
         <VBox layoutX="25.0" layoutY="25.0" spacing="20.0" AnchorPane.bottomAnchor="25.0" AnchorPane.leftAnchor="25.0" AnchorPane.rightAnchor="25.0" AnchorPane.topAnchor="25.0">
             <children>
@@ -15,6 +16,15 @@
                     <children>
                         <VBox prefWidth="420.0" spacing="12.0" style="-fx-background-color: white; -fx-padding: 15; -fx-background-radius: 10; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 0);">
                             <children>
+
+                                <StackPane prefHeight="180.0" style="-fx-background-color: #f9f9f9; -fx-background-radius: 8; -fx-border-color: #e0e0e0; -fx-border-radius: 8;">
+                                    <children>
+                                        <ImageView fx:id="itemImageView" fitHeight="170.0" fitWidth="380.0" pickOnBounds="true" preserveRatio="true" />
+                                    </children>
+                                </StackPane>
+
+                                <Separator />
+
                                 <Label fx:id="lblCurrentPrice" text="GIÁ HIỆN TẠI: 0 VNĐ" textFill="#e74c3c">
                                     <font><Font name="System Bold" size="20.0" /></font>
                                 </Label>
@@ -24,10 +34,14 @@
                                 <Separator />
 
                                 <Label text="Nhập giá thủ công:" style="-fx-font-weight: bold;" textFill="#2c3e50" />
-                                <TextField fx:id="txtBidInput" prefHeight="35.0" promptText="Nhập số tiền muốn đặt..." />
-                                <Button fx:id="btnPlaceBid" maxWidth="Infinity" onAction="#handlePlaceBid" prefHeight="40.0" style="-fx-background-color: #27ae60;" text="ĐẶT GIÁ NGAY" textFill="white">
-                                    <font><Font name="System Bold" size="14.0" /></font>
-                                </Button>
+                                <HBox spacing="10.0" alignment="CENTER_LEFT">
+                                    <children>
+                                        <TextField fx:id="txtBidInput" prefHeight="35.0" promptText="Nhập số tiền..." HBox.hgrow="ALWAYS" />
+                                        <Button fx:id="btnPlaceBid" onAction="#handlePlaceBid" prefHeight="35.0" prefWidth="130.0" style="-fx-background-color: #27ae60; -fx-cursor: hand;" text="ĐẶT GIÁ" textFill="white">
+                                            <font><Font name="System Bold" size="13.0" /></font>
+                                        </Button>
+                                    </children>
+                                </HBox>
 
                                 <Separator />
 
@@ -37,17 +51,17 @@
 
                                 <VBox spacing="5.0">
                                     <children>
-                                        <Label text="Ngưỡng dừng tối đa (Hệ thống sẽ dừng khi giá chạm mốc này):" style="-fx-font-size: 11px;" />
+                                        <Label text="Ngưỡng dừng tối đa (Hệ thống dừng khi chạm mốc này):" style="-fx-font-size: 11px;" />
                                         <TextField fx:id="txtStopPrice" prefHeight="35.0" promptText="Ví dụ: 5000000" />
                                     </children>
                                 </VBox>
 
                                 <HBox spacing="10.0">
                                     <children>
-                                        <Button fx:id="btnAutoBidSetup" HBox.hgrow="ALWAYS" maxWidth="Infinity" onAction="#handleAutoBidSetup" prefHeight="40.0" style="-fx-background-color: #e67e22;" text="BẬT AUTO-BID" textFill="white">
+                                        <Button fx:id="btnAutoBidSetup" HBox.hgrow="ALWAYS" maxWidth="Infinity" onAction="#handleAutoBidSetup" prefHeight="35.0" style="-fx-background-color: #e67e22; -fx-cursor: hand;" text="BẬT AUTO-BID" textFill="white">
                                             <font><Font name="System Bold" size="12.0" /></font>
                                         </Button>
-                                        <Button fx:id="btnStopAutoBid" disable="true" HBox.hgrow="ALWAYS" maxWidth="Infinity" onAction="#handleStopAutoBid" prefHeight="40.0" style="-fx-background-color: #e74c3c;" text="DỪNG AUTO-BID" textFill="white">
+                                        <Button fx:id="btnStopAutoBid" disable="true" HBox.hgrow="ALWAYS" maxWidth="Infinity" onAction="#handleStopAutoBid" prefHeight="35.0" style="-fx-background-color: #e74c3c; -fx-cursor: hand;" text="DỪNG AUTO-BID" textFill="white">
                                             <font><Font name="System Bold" size="12.0" /></font>
                                         </Button>
                                     </children>
@@ -55,7 +69,7 @@
 
                                 <Separator />
 
-                                <Button fx:id="btnRefresh" maxWidth="Infinity" onAction="#manualRefresh" prefHeight="30.0" text="🔄 Làm mới dữ liệu" />
+                                <Button fx:id="btnRefresh" maxWidth="Infinity" onAction="#manualRefresh" prefHeight="30.0" style="-fx-cursor: hand;" text="🔄 Làm mới dữ liệu" />
                             </children>
                         </VBox>
 

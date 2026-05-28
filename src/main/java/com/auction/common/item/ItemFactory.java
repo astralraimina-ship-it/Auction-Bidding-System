@@ -22,6 +22,9 @@ public class ItemFactory {
         String status = (String) commonData.getOrDefault("status", "OPEN");
         String paymentStatus = (String) commonData.getOrDefault("paymentStatus", "PENDING");
 
+        // 🔥 THÊM MỚI: Bóc tách đường dẫn ảnh từ dữ liệu chung (Mặc định là default.png nếu null)
+        String imagePath = (String) commonData.getOrDefault("imagePath", "default.png");
+
         if (category == null) category = "OTHER";
 
         switch (category.toUpperCase()) {
@@ -30,13 +33,15 @@ public class ItemFactory {
                         (String) specificData.getOrDefault("artist", ""),
                         (String) specificData.getOrDefault("medium", ""),
                         (String) specificData.getOrDefault("state", ""),
-                        winPrice); // winPrice ở cuối
+                        winPrice,
+                        imagePath); // 🔥 Đã thêm imagePath ở cuối cùng
 
             case "ELECTRONICS":
                 return new Electronics(id, name, desc, start, winPrice, bin, currentPrice, step, sellerName, endTime, status, paymentStatus,
                         (String) specificData.getOrDefault("brand", ""),
                         (String) specificData.getOrDefault("warranty", ""),
-                        (String) specificData.getOrDefault("state", ""));
+                        (String) specificData.getOrDefault("state", ""),
+                        imagePath); // 🔥 Đã thêm imagePath ở cuối cùng
 
             case "VEHICLE":
                 return new Vehicle(id, name, desc, start, bin, currentPrice, step, sellerName, endTime, status, paymentStatus,
@@ -46,11 +51,12 @@ public class ItemFactory {
                         (String) specificData.getOrDefault("state", ""),
                         (int) specificData.getOrDefault("age", 0),
                         (double) specificData.getOrDefault("mileage", 0.0),
-                        winPrice); // winPrice ở cuối
+                        winPrice,
+                        imagePath); // 🔥 Đã thêm imagePath ở cuối cùng
 
             case "OTHER":
             default:
-                return new Other(id, name, desc, start, bin, currentPrice, step, sellerName, endTime, status, paymentStatus, winPrice);
+                return new Other(id, name, desc, start, bin, currentPrice, step, sellerName, endTime, status, paymentStatus, winPrice, imagePath); // 🔥 Đã thêm imagePath ở cuối cùng
         }
     }
 }

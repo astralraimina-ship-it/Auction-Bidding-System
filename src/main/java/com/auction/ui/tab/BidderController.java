@@ -15,32 +15,37 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.image.WritableImage;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 public class BidderController implements ClientManager.UpdateListener {
     // --- Các cột cho bảng Sàn đấu giá (Đang mở) ---
     @FXML private TableView<Item> tableItems;
-    @FXML private TableColumn<Item, String> colName, colCategory, colDetails, colSeller;
+    @FXML private TableColumn<Item, String> colImage, colName, colCategory, colDetails, colSeller;
     @FXML private TableColumn<Item, Double> colStartPrice, colBinPrice;
     @FXML private TableColumn<Item, Timestamp> colTimeLeft;
 
     // --- Các cột cho bảng Sản phẩm đã thắng ---
     @FXML private TableView<Item> tableWonItems;
-    @FXML private TableColumn<Item, String> colWonName, colWonSeller;
+    @FXML private TableColumn<Item, String> colWonImage, colWonName, colWonSeller;
     @FXML private TableColumn<Item, Double> colWonPrice;
     @FXML private TableColumn<Item, Timestamp> colWonDate;
 
     // --- CÁC CỘT CHO BẢNG MỚI: Đang tham gia & Kết quả (Đã thua) ---
     @FXML private TableView<Item> tableParticipated;
-    @FXML private TableColumn<Item, String> colPartName;
+    @FXML private TableColumn<Item, String> colPartImage, colPartName;
     @FXML private TableColumn<Item, Double> colPartPrice;
     @FXML private TableColumn<Item, String> colPartResult;
 
@@ -65,7 +70,7 @@ public class BidderController implements ClientManager.UpdateListener {
 
         setupAuctionColumns();
         setupWonColumns();
-        setupParticipatedColumns(); // Bổ sung setup bảng mới
+        setupParticipatedColumns();
         setupRowFactory();
 
         ClientManager.getInstance().addUpdateListener(this);
@@ -86,20 +91,124 @@ public class BidderController implements ClientManager.UpdateListener {
                 String reason = parts.length > 1 ? parts[1] : "Lỗi xử lý giao dịch hoặc tài khoản không đủ tiền.";
                 showSimpleAlert("Thanh toán thất bại", reason, Alert.AlertType.ERROR);
             }
-            // 🔥 THÊM MỚI: Bắt gói dữ liệu Real-time cho bảng tham gia
             else if (signal.startsWith("PARTICIPATED_DATA")) {
                 updateParticipatedTableData(signal);
             }
-            // 🔥 THÊM MỚI: Nếu có ai đó vừa đặt giá, tự động ép xin lại bảng tham gia
             else if (signal.startsWith("BID_UPDATE") || signal.startsWith("AUCTION_CLOSED")) {
                 if (userId > 0) {
                     ClientManager.getInstance().sendCommand("GET_PARTICIPATED_AUCTIONS;" + userId);
                 }
             }
+            // Bắt tín hiệu nhận ảnh từ Server
+            else if (signal.startsWith("IMAGE_RESPONSE;")) {
+                String[] parts = signal.split(";", 3);
+                if (parts.length == 3) {
+                    String fileName = parts[1];
+                    String base64 = parts[2];
+                    try {
+                        byte[] decoded = Base64.getDecoder().decode(base64);
+                        ByteArrayInputStream bis = new ByteArrayInputStream(decoded);
+                        Image img = new Image(bis);
+
+                        // Tận dụng chung Cache ảnh với SellerController cho tối ưu RAM
+                        SellerController.imageCache.put(fileName, img);
+
+                        // Yêu cầu tất cả các bảng vẽ lại để hiển thị ảnh mới
+                        refreshTables();
+                    } catch (Exception e) {
+                        System.out.println("Lỗi giải mã ảnh Bidder: " + e.getMessage());
+                        // 🔥 ĐÃ SỬA: Nếu giải mã ảnh lỗi (ví dụ file trên server lỗi), gán ảnh mặc định vào cache để không tải lại lặp đi lặp lại
+                        Image defImg = getDefaultImage();
+                        if (defImg != null) {
+                            SellerController.imageCache.put(fileName, defImg);
+                            refreshTables();
+                        }
+                    }
+                }
+            }
         });
     }
 
+    /**
+     * 🔥 THÊM MỚI: Hàm nạp ảnh mặc định an toàn từ resources và lưu vào Cache tĩnh
+     */
+    private Image getDefaultImage() {
+        if (SellerController.imageCache.containsKey("default.png")) {
+            return SellerController.imageCache.get("default.png");
+        }
+        try {
+            Image img = new Image(getClass().getResourceAsStream("/images/default.png"));
+            SellerController.imageCache.put("default.png", img);
+            return img;
+        } catch (Exception e) {
+            try {
+                Image img = new Image(getClass().getResourceAsStream("/com/auction/ui/images/default.png"));
+                SellerController.imageCache.put("default.png", img);
+                return img;
+            } catch (Exception ex) {
+                System.out.println("Lỗi: Không tìm thấy file default.png ở cả 2 đường dẫn tài nguyên hệ thống.");
+                return null;
+            }
+        }
+    }
+
+    /**
+     * Hàm làm mới hiển thị các bảng
+     */
+    private void refreshTables() {
+        if (tableItems != null) tableItems.refresh();
+        if (tableWonItems != null) tableWonItems.refresh();
+        if (tableParticipated != null) tableParticipated.refresh();
+    }
+
+    // --- 🔥 ĐÃ SỬA: Cấu hình hiển thị ảnh để tự động lấy ảnh mặc định khi trống ảnh ---
+    private void setupImageColumn(TableColumn<Item, String> column) {
+        if (column != null) {
+            column.setCellValueFactory(new PropertyValueFactory<>("imagePath"));
+            column.setCellFactory(col -> new TableCell<Item, String>() {
+                private final ImageView imageView = new ImageView();
+                private final Image placeholder = new WritableImage(1, 1);
+
+                @Override
+                protected void updateItem(String imagePath, boolean empty) {
+                    super.updateItem(imagePath, empty);
+                    if (empty) {
+                        setGraphic(null);
+                    } else {
+                        imageView.setFitWidth(50);
+                        imageView.setFitHeight(50);
+                        imageView.setPreserveRatio(true);
+
+                        // 🔥 ĐÃ SỬA: Nếu đường dẫn rỗng hoặc là default.png -> Hiển thị ảnh mặc định từ resources
+                        if (imagePath == null || imagePath.isEmpty() || imagePath.equals("default.png")) {
+                            Image defImg = getDefaultImage();
+                            if (defImg != null) {
+                                imageView.setImage(defImg);
+                                setGraphic(imageView);
+                            } else {
+                                setGraphic(null);
+                            }
+                        } else {
+                            if (SellerController.imageCache.containsKey(imagePath)) {
+                                // Ảnh đã có sẵn trong RAM (hoặc đã tải xong trước đó)
+                                imageView.setImage(SellerController.imageCache.get(imagePath));
+                            } else {
+                                // Chưa có -> Gửi lệnh tải lên server và gán placeholder tạm thời
+                                SellerController.imageCache.put(imagePath, placeholder);
+                                ClientManager.getInstance().sendCommand("GET_IMAGE;" + imagePath);
+                                imageView.setImage(placeholder);
+                            }
+                            setGraphic(imageView);
+                        }
+                    }
+                }
+            });
+        }
+    }
+
     private void setupAuctionColumns() {
+        setupImageColumn(colImage); // Cài đặt cột ảnh
+
         colName.setCellValueFactory(new PropertyValueFactory<>("name"));
         colCategory.setCellValueFactory(new PropertyValueFactory<>("category"));
         colDetails.setCellValueFactory(new PropertyValueFactory<>("description"));
@@ -113,6 +222,8 @@ public class BidderController implements ClientManager.UpdateListener {
     }
 
     private void setupWonColumns() {
+        setupImageColumn(colWonImage); // Cài đặt cột ảnh
+
         colWonName.setCellValueFactory(new PropertyValueFactory<>("name"));
         colWonSeller.setCellValueFactory(new PropertyValueFactory<>("sellerName"));
         colWonPrice.setCellValueFactory(new PropertyValueFactory<>("winPrice"));
@@ -149,11 +260,12 @@ public class BidderController implements ClientManager.UpdateListener {
         });
     }
 
-    // --- 🔥 THÊM MỚI: Cài đặt cho bảng "Đang tham gia & Đã thua" ---
     private void setupParticipatedColumns() {
+        setupImageColumn(colPartImage); // Cài đặt cột ảnh
+
         colPartName.setCellValueFactory(new PropertyValueFactory<>("name"));
         colPartPrice.setCellValueFactory(new PropertyValueFactory<>("currentPrice"));
-        setupPriceColumnFormat(colPartPrice); // Đồng bộ format tiền tệ
+        setupPriceColumnFormat(colPartPrice);
 
         colPartResult.setCellValueFactory(cellData -> {
             Item item = cellData.getValue();
@@ -165,7 +277,6 @@ public class BidderController implements ClientManager.UpdateListener {
         });
     }
 
-    // --- ĐÃ CẬP NHẬT: Xử lý giải mã và khởi tạo Item đầy đủ step và binPrice ---
     public void updateParticipatedTableData(String rawData) {
         String[] parts = rawData.split(";");
         if (parts.length < 2 || parts[1].isEmpty()) {
@@ -178,18 +289,16 @@ public class BidderController implements ClientManager.UpdateListener {
 
         for (String row : rows) {
             String[] fields = row.split(",");
-            // ĐÃ SỬA: Đổi từ 4 thành 6 để đọc đủ 6 tham số gửi từ Server
             if (fields.length >= 6) {
-                // 1. Tạo Map chứa dữ liệu chung (Common Data)
                 java.util.Map<String, Object> commonData = new java.util.HashMap<>();
                 commonData.put("id", Integer.parseInt(fields[0]));
                 commonData.put("name", fields[1]);
                 commonData.put("currentPrice", Double.parseDouble(fields[2]));
-                commonData.put("step", Double.parseDouble(fields[3]));     // Đã nạp giá trị Bước giá (Step)
-                commonData.put("binPrice", Double.parseDouble(fields[4])); // Đã nạp Giá Mua Đứt (BIN)
-                commonData.put("status", fields[5]);                       // Đẩy status lên vị trí số 5
+                commonData.put("step", Double.parseDouble(fields[3]));
+                commonData.put("binPrice", Double.parseDouble(fields[4]));
+                commonData.put("status", fields[5]);
+                commonData.put("imagePath", "default.png"); // Đã gán mặc định để kích hoạt load ảnh resource chuẩn xác
 
-                // Các trường còn lại để mặc định
                 commonData.put("description", "");
                 commonData.put("startPrice", 0.0);
                 commonData.put("winPrice", 0.0);
@@ -197,10 +306,7 @@ public class BidderController implements ClientManager.UpdateListener {
                 commonData.put("endTime", null);
                 commonData.put("paymentStatus", "PENDING");
 
-                // 2. Tạo Map chứa dữ liệu riêng (Specific Data) trống
                 java.util.Map<String, Object> specificData = new java.util.HashMap<>();
-
-                // 3. Gọi Factory để tạo đối tượng Item cụ thể (mặc định loại "OTHER")
                 Item item = com.auction.common.item.ItemFactory.createItem("OTHER", commonData, specificData);
 
                 list.add(item);
@@ -260,7 +366,6 @@ public class BidderController implements ClientManager.UpdateListener {
             return row;
         });
 
-        // Hỗ trợ đúp chuột vào bảng Đang Tham Gia để mở lại phòng đấu giá (nếu phòng đang OPEN)
         tableParticipated.setRowFactory(tv -> {
             TableRow<Item> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
@@ -324,7 +429,6 @@ public class BidderController implements ClientManager.UpdateListener {
                     if (btnRefresh != null) btnRefresh.setDisable(false);
                 });
 
-                // Gọi Server để nạp dữ liệu cho Bảng Đang tham gia
                 if (userId > 0) {
                     ClientManager.getInstance().sendCommand("GET_PARTICIPATED_AUCTIONS;" + userId);
                 }

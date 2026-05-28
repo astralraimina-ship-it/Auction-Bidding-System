@@ -8,11 +8,11 @@ public class Electronics extends Item {
     private String warranty;
     private String state;
 
-    // ĐÃ SỬA: Thêm double currentPrice vào constructor và super()
+    // ĐÃ SỬA: Thêm String imagePath vào constructor và truyền lên super()
     public Electronics(int id, String name, String description, double startPrice, double winPrice, double binPrice, double currentPrice, double step,
                        String sellerName, Timestamp endTime, String status, String paymentStatus,
-                       String brand, String warranty, String state) {
-        super(id, name, description, startPrice, binPrice, currentPrice, winPrice, step, sellerName,  "ELECTRONICS", endTime, status, paymentStatus);
+                       String brand, String warranty, String state, String imagePath) {
+        super(id, name, description, startPrice, binPrice, currentPrice, winPrice, step, sellerName, "ELECTRONICS", endTime, status, paymentStatus, imagePath);
         this.brand = brand;
         this.warranty = warranty;
         this.state = state;
