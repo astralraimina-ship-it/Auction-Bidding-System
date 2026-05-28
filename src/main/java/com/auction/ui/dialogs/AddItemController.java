@@ -4,6 +4,7 @@ import com.auction.common.item.Item;
 import com.auction.common.item.ItemFactory;
 import com.auction.database.ItemDAO;
 import com.auction.network.ClientManager;
+import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
@@ -11,15 +12,17 @@ import javafx.scene.image.ImageView;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
+// Import thư viện Cloudinary
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
+
 import java.io.File;
 import java.io.FileInputStream;
-import java.nio.file.Files;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
-import java.time.LocalDateTime;
-import java.sql.Timestamp;
-import java.util.Base64;
-import java.util.UUID;
+import java.util.Map;
 
 public class AddItemController {
     // --- Các trường dữ liệu chung ---
@@ -31,14 +34,20 @@ public class AddItemController {
     // --- Các trường dữ liệu riêng ---
     @FXML private TextField txtBrand, txtState, txtEngineType, txtMileage, txtArtist, txtWarranty;
 
-    // 🔥 THÊM MỚI: Khung hiển thị ảnh xem trước (Preview)
+    // Khung hiển thị ảnh xem trước (Preview)
     @FXML private ImageView imgPreview;
 
     private int currentUserId; // Đây chính là sellerId
 
-    // 🔥 THÊM MỚI: Các biến lưu thông tin ảnh tạm thời
+    // Biến lưu thông tin file ảnh người dùng chọn ở máy local
     private File selectedImageFile = null;
-    private String finalImageName = "default.png"; // Mặc định nếu không chọn ảnh
+
+    // ⚠️ ĐÃ THAY ĐỔI: Cấu hình tài khoản Cloudinary của ông tại đây
+    private final Cloudinary cloudinary = new Cloudinary(ObjectUtils.asMap(
+            "cloud_name", "dvoz4wgqh",   // Thay bằng Cloud Name của ông
+            "api_key", "582996547526317",         // Thay bằng API Key của ông
+            "api_secret", "cxXICxcTG46C4ezTOulnlprAIdQ"    // Thay bằng API Secret của ông
+    ));
 
     @FXML
     public void initialize() {
@@ -56,7 +65,6 @@ public class AddItemController {
     }
 
     private void updateFieldState(String category) {
-        // Vô hiệu hóa tất cả trước khi mở lại theo loại
         txtBrand.setDisable(true);
         txtState.setDisable(true);
         txtEngineType.setDisable(true);
@@ -79,7 +87,7 @@ public class AddItemController {
         }
     }
 
-    // 🔥 THÊM MỚI: Sự kiện nút "Chọn ảnh sản phẩm"
+    // Sự kiện nút "Chọn ảnh sản phẩm"
     @FXML
     private void handleSelectImage() {
         FileChooser fileChooser = new FileChooser();
@@ -93,11 +101,8 @@ public class AddItemController {
 
         if (file != null) {
             this.selectedImageFile = file;
-            // Tạo tên file ngẫu nhiên bằng UUID kết hợp đuôi mở rộng cũ để tránh trùng lặp trên Server
-            String ext = file.getName().substring(file.getName().lastIndexOf("."));
-            this.finalImageName = UUID.randomUUID().toString() + ext;
 
-            // Hiển thị ảnh xem trước lên ImageView
+            // Hiển thị ảnh xem trước lên ImageView local
             try (FileInputStream fis = new FileInputStream(file)) {
                 Image img = new Image(fis);
                 if (imgPreview != null) {
@@ -109,101 +114,110 @@ public class AddItemController {
         }
     }
 
-    // Quan trọng: Phải gọi hàm này từ SellerController khi mở Dialog
     public void setUserId(int userId) {
         this.currentUserId = userId;
     }
 
     @FXML
     private void handleSave() {
-        try {
-            // Validate dữ liệu bắt buộc
-            if (txtName.getText().trim().isEmpty() || txtStartPrice.getText().trim().isEmpty()) {
-                showAlert("Thông báo", "Tên sản phẩm và Giá khởi điểm không được để trống!");
-                return;
-            }
+        // Chạy ngầm xử lý lưu & upload ảnh để tránh làm đơ/vỡ giao diện JavaFX (UI Thread)
+        new Thread(() -> {
+            try {
+                // Validate dữ liệu bắt buộc (Đẩy về chạy trên UI Thread bằng Platform.runLater nếu cần hiện Alert)
+                if (txtName.getText().trim().isEmpty() || txtStartPrice.getText().trim().isEmpty()) {
+                    Platform.runLater(() -> showAlert("Thông báo", "Tên sản phẩm và Giá khởi điểm không được để trống!"));
+                    return;
+                }
 
-            double stepPrice = parseDoubleSafe(txtStep);
-            if (stepPrice <= 0 || stepPrice % 10000 != 0) {
-                showAlert("Thông báo", "Bước giá phải lớn hơn 0 và là bội số của 10,000 VNĐ (Ví dụ: 10,000, 20,000, 50,000...)!");
-                return;
-            }
+                double stepPrice = parseDoubleSafe(txtStep);
+                if (stepPrice <= 0 || stepPrice % 10000 != 0) {
+                    Platform.runLater(() -> showAlert("Thông báo", "Bước giá phải lớn hơn 0 và là bội số của 10,000 VNĐ!"));
+                    return;
+                }
 
-            // 1. Xử lý thời gian kết thúc (endTime)
-            String selectedDuration = comboDuration.getValue();
-            int hours = 0;
-            if (selectedDuration.contains("giờ")) {
-                hours = Integer.parseInt(selectedDuration.replace(" giờ", ""));
-            } else if (selectedDuration.contains("ngày")) {
-                hours = Integer.parseInt(selectedDuration.replace(" ngày", "")) * 24;
-            }
-            Timestamp endTime = Timestamp.valueOf(LocalDateTime.now().plusHours(hours));
+                // Kiểm tra sellerId trước khi gửi
+                if (currentUserId <= 0) {
+                    Platform.runLater(() -> showAlert("Lỗi hệ thống", "Không tìm thấy ID người bán. Vui lòng đăng nhập lại!"));
+                    return;
+                }
 
-            // 2. Thu thập dữ liệu chung (Map key phải khớp với ItemDAO)
-            Map<String, Object> commonData = new HashMap<>();
-            commonData.put("id", 0);
-            commonData.put("name", txtName.getText().trim());
-            commonData.put("category", comboCategory.getValue());
-            commonData.put("description", txtDescription.getText().trim());
-            commonData.put("startPrice", parseDoubleSafe(txtStartPrice));
-            commonData.put("binPrice", parseDoubleSafe(txtBinPrice));
-            commonData.put("step", parseDoubleSafe(txtStep));
-            commonData.put("endTime", endTime);
-            commonData.put("status", "OPEN");
-
-            // 🔥 THÊM MỚI: Truyền đường dẫn/tên file ảnh vào dữ liệu chung cho Factory tạo đối tượng
-            commonData.put("imagePath", finalImageName);
-
-            // 3. Thu thập dữ liệu riêng
-            Map<String, Object> specificData = new HashMap<>();
-            specificData.put("brand", getSafeText(txtBrand));
-            specificData.put("state", getSafeText(txtState));
-            specificData.put("engineType", getSafeText(txtEngineType));
-            specificData.put("artist", getSafeText(txtArtist));
-            specificData.put("warranty", getSafeText(txtWarranty));
-            specificData.put("mileage", parseDoubleSafe(txtMileage));
-
-            // 4. Tạo Object qua Factory và lưu vào DB
-            Item newItem = ItemFactory.createItem(comboCategory.getValue(), commonData, specificData);
-            ItemDAO dao = new ItemDAO();
-
-            // Kiểm tra sellerId trước khi gửi
-            if (currentUserId <= 0) {
-                showAlert("Lỗi hệ thống", "Không tìm thấy ID người bán. Vui lòng đăng nhập lại!");
-                return;
-            }
-
-            if (dao.addItem(newItem, currentUserId)) {
-                // 🔥 THÊM MỚI: Nếu người dùng có chọn ảnh, tiến hành tải ảnh lên Server thông qua luồng Socket mạng
+                // ĐÃ THAY ĐỔI: Tiến hành đẩy ảnh lên Cloudinary để lấy link URL tuyệt đối trước
+                String finalImageUrl = ""; // Mặc định chuỗi rỗng nếu không chọn ảnh
                 if (selectedImageFile != null && selectedImageFile.exists()) {
                     try {
-                        byte[] fileBytes = Files.readAllBytes(selectedImageFile.toPath());
-                        String base64String = Base64.getEncoder().encodeToString(fileBytes);
-
-                        // Định dạng chuỗi lệnh gửi: UPLOAD_IMAGE;tên_file;chuỗi_base64
-                        String uploadCmd = "UPLOAD_IMAGE;" + finalImageName + ";" + base64String;
-                        ClientManager.getInstance().sendCommand(uploadCmd);
-                    } catch (Exception imgEx) {
-                        System.out.println("Lỗi chuyển đổi/gửi ảnh lên Server: " + imgEx.getMessage());
+                        System.out.println(">>> Đang đẩy ảnh lên Cloudinary...");
+                        Map uploadResult = cloudinary.uploader().upload(selectedImageFile, ObjectUtils.emptyMap());
+                        finalImageUrl = (String) uploadResult.get("url"); // Lấy link dạng https://res.cloudinary.com/...
+                        System.out.println(">>> Upload thành công! URL ảnh: " + finalImageUrl);
+                    } catch (Exception cloudEx) {
+                        System.out.println(">>> Lỗi upload Cloudinary: " + cloudEx.getMessage());
+                        Platform.runLater(() -> showAlert("Lỗi upload ảnh", "Không thể tải ảnh lên hệ thống Cloud. Vui lòng thử lại!"));
+                        return;
                     }
                 }
 
-                int itemId = newItem.getId();
-                double startPrice = newItem.getStartPrice();
-                double step = newItem.getStep();
-                double binPrice = newItem.getBinPrice();
+                // 1. Xử lý thời gian kết thúc (endTime)
+                String selectedDuration = comboDuration.getValue();
+                int hours = 0;
+                if (selectedDuration.contains("giờ")) {
+                    hours = Integer.parseInt(selectedDuration.replace(" giờ", ""));
+                } else if (selectedDuration.contains("ngày")) {
+                    hours = Integer.parseInt(selectedDuration.replace(" ngày", "")) * 24;
+                }
+                Timestamp endTime = Timestamp.valueOf(LocalDateTime.now().plusHours(hours));
 
-                ClientManager.getInstance().sendCommand("NEW_ITEM;" + itemId + ";" + startPrice + ";" + step + ";" + binPrice);
-                showAlert("Thành công", "Sản phẩm đã được đăng lên hệ thống!");
-                closeWindow();
-            } else {
-                showAlert("Lỗi", "Database từ chối lưu sản phẩm. Vui lòng kiểm tra lại kết nối!");
+                // 2. Thu thập dữ liệu chung (Lưu URL ảnh trực tiếp vào trường imagePath)
+                Map<String, Object> commonData = new HashMap<>();
+                commonData.put("id", 0);
+                commonData.put("name", txtName.getText().trim());
+                commonData.put("category", comboCategory.getValue());
+                commonData.put("description", txtDescription.getText().trim());
+                commonData.put("startPrice", parseDoubleSafe(txtStartPrice));
+                commonData.put("binPrice", parseDoubleSafe(txtBinPrice));
+                commonData.put("step", parseDoubleSafe(txtStep));
+                commonData.put("endTime", endTime);
+                commonData.put("status", "OPEN");
+
+                // ✅ THAY ĐỔI CHÍ MẠNG: Gán thẳng link URL mạng vào thay cho tên file local cũ
+                commonData.put("imagePath", finalImageUrl);
+
+                // 3. Thu thập dữ liệu riêng
+                Map<String, Object> specificData = new HashMap<>();
+                specificData.put("brand", getSafeText(txtBrand));
+                specificData.put("state", getSafeText(txtState));
+                specificData.put("engineType", getSafeText(txtEngineType));
+                specificData.put("artist", getSafeText(txtArtist));
+                specificData.put("warranty", getSafeText(txtWarranty));
+                specificData.put("mileage", parseDoubleSafe(txtMileage));
+
+                // 4. Tạo Object qua Factory và lưu vào DB trung tâm
+                Item newItem = ItemFactory.createItem(comboCategory.getValue(), commonData, specificData);
+                ItemDAO dao = new ItemDAO();
+
+                if (dao.addItem(newItem, currentUserId)) {
+                    int itemId = newItem.getId();
+                    double startPrice = newItem.getStartPrice();
+                    double step = newItem.getStep();
+                    double binPrice = newItem.getBinPrice();
+
+                    // ✅ ĐÃ XÓA SẠCH: Đoạn code gửi Socket UPLOAD_IMAGE Base64 cũ biến mất hoàn toàn ở đây!
+
+                    // Chỉ gửi thông báo phòng đấu giá mới cho các máy khác cập nhật giao diện
+                    ClientManager.getInstance().sendCommand("NEW_ITEM;" + itemId + ";" + startPrice + ";" + step + ";" + binPrice);
+
+                    Platform.runLater(() -> {
+                        showAlert("Thành công", "Sản phẩm đã được đăng lên hệ thống!");
+                        closeWindow();
+                    });
+                } else {
+                    Platform.runLater(() -> showAlert("Lỗi", "Database từ chối lưu sản phẩm. Vui lòng kiểm tra lại kết nối!"));
+                }
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                Platform.runLater(() -> showAlert("Lỗi", "Đã xảy ra lỗi: " + e.getMessage()));
             }
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            showAlert("Lỗi", "Đã xảy ra lỗi: " + e.getMessage());
-        }
+        }).start();
     }
 
     @FXML

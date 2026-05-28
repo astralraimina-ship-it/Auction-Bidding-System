@@ -39,24 +39,40 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
      * Nhận dữ liệu Item và hiển thị lên UI
      */
     public void initData(Item item) {
+        if (item == null) return;
         this.currentItem = item;
+
         lblProductName.setText(item.getName());
         lblStep.setText("Bước giá tối thiểu: " + String.format("%,.0f", item.getStep()) + " VNĐ");
         lblBinPrice.setText("Giá mua đứt: " + String.format("%,.0f", item.getBinPrice()) + " VNĐ");
 
-        if (txtStopPrice != null) txtStopPrice.setPromptText("Ví dụ: " + String.format("%.0f", item.getBinPrice()));
+        if (txtStopPrice != null) {
+            txtStopPrice.setPromptText("Ví dụ: " + String.format("%.0f", item.getBinPrice()));
+        }
 
-        // 🔥 ĐÃ SỬA: Xử lý hiển thị ảnh mặc định từ resources nếu trống ảnh
+        // XỬ LÝ TỰ ĐỘNG NHẬN DIỆN ẢNH CLOUDINARY HOẶC LOCAL
         if (itemImageView != null) {
             String imagePath = item.getImagePath();
             if (imagePath == null || imagePath.isEmpty() || imagePath.equals("default.png")) {
-                loadDefaultImage(); // Gọi hàm load ảnh mặc định
+                loadDefaultImage();
             } else {
-                // Tận dụng Cache tĩnh từ SellerController để tránh tải lại ảnh
-                if (SellerController.imageCache.containsKey(imagePath)) {
+                // TRƯỜNG HỢP 1: Nếu là link online Cloudinary (Bắt đầu bằng http hoặc https)
+                if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
+                    try {
+                        // JavaFX hỗ trợ truyền URL trực tiếp vào đối tượng Image, đặt 'true' để load background tránh đơ UI
+                        Image img = new Image(imagePath, true);
+                        itemImageView.setImage(img);
+                    } catch (Exception e) {
+                        System.out.println("Lỗi tải ảnh trực tiếp từ URL Cloudinary: " + e.getMessage());
+                        loadDefaultImage();
+                    }
+                }
+                // TRƯỜNG HỢP 2: Tận dụng Cache tĩnh từ SellerController
+                else if (SellerController.imageCache != null && SellerController.imageCache.containsKey(imagePath)) {
                     itemImageView.setImage(SellerController.imageCache.get(imagePath));
-                } else {
-                    // Nếu chưa có ảnh trong RAM, gửi lệnh tải từ Server
+                }
+                // TRƯỜNG HỢP 3: Nếu là ảnh cục bộ chưa có trong RAM, gửi lệnh tải từ Server qua Socket
+                else {
                     ClientManager.getInstance().sendCommand("GET_IMAGE;" + imagePath);
                 }
             }
@@ -70,18 +86,18 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
     }
 
     /**
-     * 🔥 THÊM MỚI: Hàm nạp ảnh mặc định từ resources (An toàn, chống Crash)
+     * Hàm nạp ảnh mặc định từ resources (An toàn, chống Crash)
      */
     private void loadDefaultImage() {
         if (itemImageView == null) return;
         try {
-            // Thử tìm tại thư mục src/main/resources/images/default.png
+            // Thử tìm tại thư mục gốc src/main/resources/images/default.png
             Image defaultImg = new Image(getClass().getResourceAsStream("/images/default.png"));
             itemImageView.setImage(defaultImg);
         } catch (Exception e) {
             try {
-                // Fallback: Thử tìm tại thư mục src/main/resources/com/auction/ui/images/default.png theo package cấu trúc của bạn
-                Image defaultImg = new Image(getClass().getResourceAsStream("/images/default.png"));
+                // Fallback: Thử tìm tại thư mục theo cấu trúc package com/auction/ui/images/default.png
+                Image defaultImg = new Image(getClass().getResourceAsStream("/com/auction/ui/images/default.png"));
                 itemImageView.setImage(defaultImg);
             } catch (Exception ex) {
                 System.out.println("Lỗi: Không tìm thấy file default.png ở cả 2 đường dẫn tài nguyên. Khung ảnh sẽ để trống.");
@@ -187,26 +203,34 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
             if (signal.equalsIgnoreCase("REFRESH")) {
                 manualRefresh();
             }
-            // Xử lý khi Server gửi ảnh về
+            // Xử lý khi Server phản hồi dữ liệu ảnh
             else if (signal.startsWith("IMAGE_RESPONSE;")) {
                 String[] parts = signal.split(";", 3);
                 if (parts.length == 3) {
                     String fileName = parts[1];
-                    String base64 = parts[2];
+                    String content = parts[2];
 
                     if (currentItem != null && fileName.equals(currentItem.getImagePath())) {
                         try {
-                            byte[] decoded = Base64.getDecoder().decode(base64);
-                            ByteArrayInputStream bis = new ByteArrayInputStream(decoded);
-                            Image img = new Image(bis);
+                            Image img;
+                            // Nếu nội dung phản hồi là URL Cloudinary
+                            if (content.startsWith("http://") || content.startsWith("https://")) {
+                                img = new Image(content, true);
+                            } else {
+                                // Nếu nội dung phản hồi là chuỗi dữ liệu Base64 truyền thống
+                                byte[] decoded = Base64.getDecoder().decode(content);
+                                ByteArrayInputStream bis = new ByteArrayInputStream(decoded);
+                                img = new Image(bis);
+                            }
 
-                            SellerController.imageCache.put(fileName, img);
+                            if (SellerController.imageCache != null) {
+                                SellerController.imageCache.put(fileName, img);
+                            }
                             if (itemImageView != null) {
                                 itemImageView.setImage(img);
                             }
                         } catch (Exception e) {
-                            System.out.println("Lỗi giải mã ảnh từ server: " + e.getMessage());
-                            // 🔥 ĐÃ SỬA: Nếu giải mã ảnh lỗi (file hỏng, mất mạng giữa chừng), chuyển sang ảnh mặc định
+                            System.out.println("Lỗi xử lý ảnh từ dữ liệu server: " + e.getMessage());
                             loadDefaultImage();
                         }
                     }
@@ -284,7 +308,8 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
 
     @FXML
     private void handlePlaceBid() {
-        String input = txtBidInput.getText();
+        if (currentItem == null) return;
+        String input = txtBidInput.getText().trim();
         try {
             double amount = Double.parseDouble(input);
             processBidLogic(amount);
@@ -295,8 +320,21 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
 
     private void processBidLogic(double bidAmount) {
         synchronized (lock) {
+            if (currentItem == null) {
+                showError("Lỗi: Không tìm thấy thông tin sản phẩm hiện tại!");
+                return;
+            }
+
+            // 🔥 LỚP BẢO VỆ DÒNG 325: Kiểm tra nếu endTime bị null thì không gọi .getTime() để tránh sập app
+            if (currentItem.getEndTime() == null) {
+                showError("Rất tiếc! Phiên đấu giá này không tồn tại hoặc đã kết thúc trên hệ thống.");
+                txtBidInput.setDisable(true);
+                btnPlaceBid.setDisable(true);
+                return;
+            }
+
             long currentTime = System.currentTimeMillis();
-            long endTime = currentItem.getEndTime().getTime();
+            long endTime = currentItem.getEndTime().getTime(); // Hết lo bị NullPointerException ở đây nhé!
 
             if (currentTime >= endTime) {
                 showError("Rất tiếc! Phiên đấu giá này đã kết thúc.");
@@ -322,6 +360,7 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
     }
 
     private void handleBinConfirmation() {
+        if (currentItem == null) return;
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
         alert.setTitle("Xác nhận mua đứt");
         alert.setHeaderText("Giá bạn đưa ra đạt ngưỡng Mua Đứt!");
@@ -334,7 +373,7 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
     }
 
     private void handleAntiSnipe(Item item) {
-        if (item.getEndTime() == null) return;
+        if (item == null || item.getEndTime() == null) return;
 
         long timeLeft = item.getEndTime().getTime() - System.currentTimeMillis();
 
@@ -353,14 +392,19 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
 
     @FXML
     public void manualRefresh() {
+        if (currentItem == null) return;
         double max = bidDAO.getCurrentMaxBid(currentItem.getId(), currentItem.getStartPrice());
         Platform.runLater(() -> {
-            lblCurrentPrice.setText("GIÁ HIỆN TẠI: " + String.format("%,.0f", max) + " VNĐ");
+            if (lblCurrentPrice != null) {
+                lblCurrentPrice.setText("GIÁ HIỆN TẠI: " + String.format("%,.0f", max) + " VNĐ");
+            }
         });
     }
 
     private void logAction(String msg) {
-        txtAreaLog.appendText("> " + msg + "\n");
+        if (txtAreaLog != null) {
+            txtAreaLog.appendText("> " + msg + "\n");
+        }
     }
 
     private void showError(String msg) {

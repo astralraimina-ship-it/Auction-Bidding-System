@@ -58,10 +58,10 @@
 
                                 <HBox spacing="10.0">
                                     <children>
-                                        <Button fx:id="btnAutoBidSetup" HBox.hgrow="ALWAYS" maxWidth="Infinity" onAction="#handleAutoBidSetup" prefHeight="35.0" style="-fx-background-color: #e67e22; -fx-cursor: hand;" text="BẬT AUTO-BID" textFill="white">
+                                        <Button fx:id="btnAutoBidSetup" HBox.hgrow="ALWAYS" maxWidth="1.7976931348623157E308" onAction="#handleAutoBidSetup" prefHeight="35.0" style="-fx-background-color: #e67e22; -fx-cursor: hand;" text="BẬT AUTO-BID" textFill="white">
                                             <font><Font name="System Bold" size="12.0" /></font>
                                         </Button>
-                                        <Button fx:id="btnStopAutoBid" disable="true" HBox.hgrow="ALWAYS" maxWidth="Infinity" onAction="#handleStopAutoBid" prefHeight="35.0" style="-fx-background-color: #e74c3c; -fx-cursor: hand;" text="DỪNG AUTO-BID" textFill="white">
+                                        <Button fx:id="btnStopAutoBid" disable="true" HBox.hgrow="ALWAYS" maxWidth="1.7976931348623157E308" onAction="#handleStopAutoBid" prefHeight="35.0" style="-fx-background-color: #e74c3c; -fx-cursor: hand;" text="DỪNG AUTO-BID" textFill="white">
                                             <font><Font name="System Bold" size="12.0" /></font>
                                         </Button>
                                     </children>
@@ -69,7 +69,7 @@
 
                                 <Separator />
 
-                                <Button fx:id="btnRefresh" maxWidth="Infinity" onAction="#manualRefresh" prefHeight="30.0" style="-fx-cursor: hand;" text="🔄 Làm mới dữ liệu" />
+                                <Button fx:id="btnRefresh" maxWidth="1.7976931348623157E308" onAction="#manualRefresh" prefHeight="30.0" style="-fx-cursor: hand;" text="🔄 Làm mới dữ liệu" />
                             </children>
                         </VBox>
 

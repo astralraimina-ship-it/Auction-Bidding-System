@@ -17,17 +17,14 @@ import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.image.WritableImage;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 
 public class BidderController implements ClientManager.UpdateListener {
@@ -57,7 +54,6 @@ public class BidderController implements ClientManager.UpdateListener {
     private String username;
     private int userId;
 
-    // Biến lưu trữ thể hiện để dùng cho việc Update Real-time
     private static BidderController instance;
 
     public static BidderController getInstance() {
@@ -66,9 +62,10 @@ public class BidderController implements ClientManager.UpdateListener {
 
     @FXML
     public void initialize() {
-        instance = this; // Gán instance
+        instance = this;
 
         setupAuctionColumns();
+        colTimeLeft.setCellValueFactory(new PropertyValueFactory<>("endTime"));
         setupWonColumns();
         setupParticipatedColumns();
         setupRowFactory();
@@ -99,75 +96,32 @@ public class BidderController implements ClientManager.UpdateListener {
                     ClientManager.getInstance().sendCommand("GET_PARTICIPATED_AUCTIONS;" + userId);
                 }
             }
-            // Bắt tín hiệu nhận ảnh từ Server
-            else if (signal.startsWith("IMAGE_RESPONSE;")) {
-                String[] parts = signal.split(";", 3);
-                if (parts.length == 3) {
-                    String fileName = parts[1];
-                    String base64 = parts[2];
-                    try {
-                        byte[] decoded = Base64.getDecoder().decode(base64);
-                        ByteArrayInputStream bis = new ByteArrayInputStream(decoded);
-                        Image img = new Image(bis);
-
-                        // Tận dụng chung Cache ảnh với SellerController cho tối ưu RAM
-                        SellerController.imageCache.put(fileName, img);
-
-                        // Yêu cầu tất cả các bảng vẽ lại để hiển thị ảnh mới
-                        refreshTables();
-                    } catch (Exception e) {
-                        System.out.println("Lỗi giải mã ảnh Bidder: " + e.getMessage());
-                        // 🔥 ĐÃ SỬA: Nếu giải mã ảnh lỗi (ví dụ file trên server lỗi), gán ảnh mặc định vào cache để không tải lại lặp đi lặp lại
-                        Image defImg = getDefaultImage();
-                        if (defImg != null) {
-                            SellerController.imageCache.put(fileName, defImg);
-                            refreshTables();
-                        }
-                    }
-                }
-            }
+            // ✂️ ĐÃ XÓA SẠCH: Khối nhận lệnh Socket IMAGE_RESPONSE cồng kềnh cũ đã biến mất!
         });
     }
 
     /**
-     * 🔥 THÊM MỚI: Hàm nạp ảnh mặc định an toàn từ resources và lưu vào Cache tĩnh
+     * Hàm nạp ảnh mặc định an toàn từ resources
      */
     private Image getDefaultImage() {
-        if (SellerController.imageCache.containsKey("default.png")) {
-            return SellerController.imageCache.get("default.png");
-        }
         try {
-            Image img = new Image(getClass().getResourceAsStream("/images/default.png"));
-            SellerController.imageCache.put("default.png", img);
-            return img;
+            return new Image(getClass().getResourceAsStream("/images/default.png"));
         } catch (Exception e) {
             try {
-                Image img = new Image(getClass().getResourceAsStream("/com/auction/ui/images/default.png"));
-                SellerController.imageCache.put("default.png", img);
-                return img;
+                return new Image(getClass().getResourceAsStream("/com/auction/ui/images/default.png"));
             } catch (Exception ex) {
-                System.out.println("Lỗi: Không tìm thấy file default.png ở cả 2 đường dẫn tài nguyên hệ thống.");
+                System.out.println("Lỗi: Không tìm thấy file default.png ở cả 2 đường dẫn tài nguyên.");
                 return null;
             }
         }
     }
 
-    /**
-     * Hàm làm mới hiển thị các bảng
-     */
-    private void refreshTables() {
-        if (tableItems != null) tableItems.refresh();
-        if (tableWonItems != null) tableWonItems.refresh();
-        if (tableParticipated != null) tableParticipated.refresh();
-    }
-
-    // --- 🔥 ĐÃ SỬA: Cấu hình hiển thị ảnh để tự động lấy ảnh mặc định khi trống ảnh ---
+    // --- 🚀 ĐÃ SỬA CHÍ MẠNG: Đọc trực tiếp URL từ Cloudinary chạy ngầm siêu mượt ---
     private void setupImageColumn(TableColumn<Item, String> column) {
         if (column != null) {
             column.setCellValueFactory(new PropertyValueFactory<>("imagePath"));
             column.setCellFactory(col -> new TableCell<Item, String>() {
                 private final ImageView imageView = new ImageView();
-                private final Image placeholder = new WritableImage(1, 1);
 
                 @Override
                 protected void updateItem(String imagePath, boolean empty) {
@@ -179,27 +133,15 @@ public class BidderController implements ClientManager.UpdateListener {
                         imageView.setFitHeight(50);
                         imageView.setPreserveRatio(true);
 
-                        // 🔥 ĐÃ SỬA: Nếu đường dẫn rỗng hoặc là default.png -> Hiển thị ảnh mặc định từ resources
-                        if (imagePath == null || imagePath.isEmpty() || imagePath.equals("default.png")) {
-                            Image defImg = getDefaultImage();
-                            if (defImg != null) {
-                                imageView.setImage(defImg);
-                                setGraphic(imageView);
-                            } else {
-                                setGraphic(null);
-                            }
+                        // Kiểm tra nếu đường dẫn hợp lệ và bắt đầu bằng http (Link Cloudinary)
+                        if (imagePath != null && !imagePath.isEmpty() && imagePath.startsWith("http")) {
+                            // ✅ Tham số 'true' ở cuối kích hoạt Background Loading giúp app không bị giật lag khi cuộn bảng
+                            imageView.setImage(new Image(imagePath, true));
                         } else {
-                            if (SellerController.imageCache.containsKey(imagePath)) {
-                                // Ảnh đã có sẵn trong RAM (hoặc đã tải xong trước đó)
-                                imageView.setImage(SellerController.imageCache.get(imagePath));
-                            } else {
-                                // Chưa có -> Gửi lệnh tải lên server và gán placeholder tạm thời
-                                SellerController.imageCache.put(imagePath, placeholder);
-                                ClientManager.getInstance().sendCommand("GET_IMAGE;" + imagePath);
-                                imageView.setImage(placeholder);
-                            }
-                            setGraphic(imageView);
+                            // Nếu trống hoặc dính ảnh cũ dạng local -> Ốp ảnh mặc định
+                            imageView.setImage(getDefaultImage());
                         }
+                        setGraphic(imageView);
                     }
                 }
             });
@@ -207,7 +149,7 @@ public class BidderController implements ClientManager.UpdateListener {
     }
 
     private void setupAuctionColumns() {
-        setupImageColumn(colImage); // Cài đặt cột ảnh
+        setupImageColumn(colImage);
 
         colName.setCellValueFactory(new PropertyValueFactory<>("name"));
         colCategory.setCellValueFactory(new PropertyValueFactory<>("category"));
@@ -222,7 +164,7 @@ public class BidderController implements ClientManager.UpdateListener {
     }
 
     private void setupWonColumns() {
-        setupImageColumn(colWonImage); // Cài đặt cột ảnh
+        setupImageColumn(colWonImage);
 
         colWonName.setCellValueFactory(new PropertyValueFactory<>("name"));
         colWonSeller.setCellValueFactory(new PropertyValueFactory<>("sellerName"));
@@ -261,7 +203,7 @@ public class BidderController implements ClientManager.UpdateListener {
     }
 
     private void setupParticipatedColumns() {
-        setupImageColumn(colPartImage); // Cài đặt cột ảnh
+        setupImageColumn(colPartImage);
 
         colPartName.setCellValueFactory(new PropertyValueFactory<>("name"));
         colPartPrice.setCellValueFactory(new PropertyValueFactory<>("currentPrice"));
@@ -297,7 +239,9 @@ public class BidderController implements ClientManager.UpdateListener {
                 commonData.put("step", Double.parseDouble(fields[3]));
                 commonData.put("binPrice", Double.parseDouble(fields[4]));
                 commonData.put("status", fields[5]);
-                commonData.put("imagePath", "default.png"); // Đã gán mặc định để kích hoạt load ảnh resource chuẩn xác
+
+                // ⚠️ Nếu Server trả về link ảnh chuẩn từ DB trong chuỗi ghép thì parse vào, tạm thời lấy mặc định nếu trống
+                commonData.put("imagePath", fields.length > 6 ? fields[6] : "default.png");
 
                 commonData.put("description", "");
                 commonData.put("startPrice", 0.0);
@@ -500,7 +444,7 @@ public class BidderController implements ClientManager.UpdateListener {
     @FXML
     private void handleLogout() {
         if (lblBalance != null && lblBalance.getScene() != null) {
-            instance = null; // Xóa instance khi đăng xuất
+            instance = null;
             ClientManager.getInstance().removeUpdateListener(this);
             Stage stage = (Stage) lblBalance.getScene().getWindow();
             NavigationService.navigate(stage, "/com/auction/ui/login.fxml", "UET Auction - Đăng nhập");

@@ -57,7 +57,6 @@
                     <TableView fx:id="tableItems" VBox.vgrow="ALWAYS" style="-fx-background-radius: 5; -fx-font-size: 14px;">
                         <columns>
                             <TableColumn fx:id="colImage" text="Hình ảnh" prefWidth="100" style="-fx-alignment: CENTER;" />
-
                             <TableColumn fx:id="colName" text="Tên sản phẩm" prefWidth="150" />
                             <TableColumn fx:id="colCategory" text="Loại hàng" prefWidth="90" style="-fx-alignment: CENTER;" />
                             <TableColumn fx:id="colSeller" text="Người bán" prefWidth="100" style="-fx-alignment: CENTER;" />

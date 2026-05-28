@@ -17,16 +17,13 @@ import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.image.WritableImage;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -47,11 +44,8 @@ public class SellerController implements ClientManager.UpdateListener {
     private int sellerId;
     private String username;
 
-    // CACHE ẢNH
+    // Giữ lại Cache tĩnh phòng trường hợp các file controller khác chưa sửa hết vẫn tham chiếu tới nó (không lo lỗi compile)
     public static final Map<String, Image> imageCache = new ConcurrentHashMap<>();
-
-    // Tạo sẵn 1 ảnh trống 1x1 pixel trong suốt để làm placeholder trên RAM (Tránh lỗi thiếu file local)
-    private final Image placeholderImage = new WritableImage(1, 1);
 
     @FXML
     public void initialize() {
@@ -67,24 +61,7 @@ public class SellerController implements ClientManager.UpdateListener {
         if (signal.equals("REFRESH")){
             refreshAll();
         }
-        // 🔥 NHẬN DỮ LIỆU ẢNH TỪ SERVER
-        else if (signal.startsWith("IMAGE_RESPONSE;")) {
-            String[] parts = signal.split(";", 3);
-            if (parts.length == 3) {
-                String fileName = parts[1];
-                String base64 = parts[2];
-                try {
-                    byte[] decoded = Base64.getDecoder().decode(base64);
-                    ByteArrayInputStream bis = new ByteArrayInputStream(decoded);
-                    Image img = new Image(bis);
-                    imageCache.put(fileName, img); // Cập nhật ảnh thật vào Cache
-
-                    Platform.runLater(() -> tableItems.refresh()); // Vẽ lại bảng
-                } catch (Exception e) {
-                    System.out.println("Lỗi giải mã ảnh: " + e.getMessage());
-                }
-            }
-        }
+        // ✂️ ĐÃ XÓA: Khối nhận và giải mã mảng byte ảnh IMAGE_RESPONSE từ Socket cồng kềnh cũ đã loại bỏ hoàn toàn!
     }
 
     private void setupColumns() {
@@ -95,6 +72,23 @@ public class SellerController implements ClientManager.UpdateListener {
         if (colBinPrice != null) colBinPrice.setCellValueFactory(new PropertyValueFactory<>("binPrice"));
     }
 
+    /**
+     * Hàm nạp ảnh mặc định từ tài nguyên hệ thống (An toàn, chống Crash)
+     */
+    private Image getDefaultImage() {
+        try {
+            return new Image(getClass().getResourceAsStream("/images/default.png"));
+        } catch (Exception e) {
+            try {
+                return new Image(getClass().getResourceAsStream("/com/auction/ui/images/default.png"));
+            } catch (Exception ex) {
+                System.out.println("Lỗi: Không tìm thấy file ảnh default.png trong resources.");
+                return null;
+            }
+        }
+    }
+
+    // --- 🚀 ĐÃ SỬA CHÍ MẠNG: Đọc link mạng trực tiếp từ Cloudinary ---
     private void setupImageColumn() {
         if (colImage != null) {
             colImage.setCellValueFactory(new PropertyValueFactory<>("imagePath"));
@@ -104,21 +98,20 @@ public class SellerController implements ClientManager.UpdateListener {
                 @Override
                 protected void updateItem(String imagePath, boolean empty) {
                     super.updateItem(imagePath, empty);
-                    if (empty || imagePath == null || imagePath.isEmpty() || imagePath.equals("default.png")) {
+                    if (empty) {
                         setGraphic(null);
                     } else {
                         imageView.setFitWidth(50);
                         imageView.setFitHeight(50);
                         imageView.setPreserveRatio(true);
 
-                        if (imageCache.containsKey(imagePath)) {
-                            // Ảnh đã có sẵn
-                            imageView.setImage(imageCache.get(imagePath));
+                        // Nếu là URL hợp lệ (bắt đầu bằng http từ Cloudinary)
+                        if (imagePath != null && !imagePath.isEmpty() && imagePath.startsWith("http")) {
+                            // ✅ Tham số 'true' kích hoạt cơ chế Background Loading giúp tự động tải ảnh song song, cuộn bảng mượt mà
+                            imageView.setImage(new Image(imagePath, true));
                         } else {
-                            // Chưa có -> Gửi lệnh tải và gán placeholder
-                            imageCache.put(imagePath, placeholderImage);
-                            ClientManager.getInstance().sendCommand("GET_IMAGE;" + imagePath);
-                            imageView.setImage(placeholderImage);
+                            // Trường hợp ảnh trống hoặc dính text local cũ ("default.png") -> Ốp ảnh mặc định sạch đẹp
+                            imageView.setImage(getDefaultImage());
                         }
                         setGraphic(imageView);
                     }

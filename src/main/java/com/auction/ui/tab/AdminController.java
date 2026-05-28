@@ -12,6 +12,8 @@ import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.stage.Stage;
 
 public class AdminController implements ClientManager.UpdateListener {
@@ -32,7 +34,9 @@ public class AdminController implements ClientManager.UpdateListener {
     @FXML private TableColumn<Item, String> colName, colCategory, colSeller, colDetails, colTimeLeft;
     @FXML private TableColumn<Item, Double> colStartPrice, colBinPrice;
 
-    // Thêm nút Button để tiện disable khi đang load
+    // 🔥 CỘT ẢNH MỚI CHO ADMIN
+    @FXML private TableColumn<Item, String> colImage;
+
     @FXML private Button btnRefresh;
 
     private final AdminDAO adminDAO = new AdminDAO();
@@ -107,12 +111,18 @@ public class AdminController implements ClientManager.UpdateListener {
         if (colStartPrice != null) setupItemCurrencyColumn(colStartPrice, "startPrice");
         if (colBinPrice != null) setupItemCurrencyColumn(colBinPrice, "binPrice");
 
+        // 🔥 Cấu hình cột hiển thị ảnh cho Admin
+        if (colImage != null) {
+            setupImageColumn();
+        }
+
         if (colTimeLeft != null) {
             colTimeLeft.setCellFactory(tc -> new TableCell<Item, String>() {
                 @Override
                 protected void updateItem(String item, boolean empty) {
                     super.updateItem(item, empty);
-                    if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                    // ĐÃ SỬA: Chống NullPointerException (NPE) khi dữ liệu kết thúc của item bị trống
+                    if (empty || getTableRow() == null || getTableRow().getItem() == null || getTableRow().getItem().getEndTime() == null) {
                         setText(null);
                         setStyle("");
                     } else {
@@ -133,7 +143,53 @@ public class AdminController implements ClientManager.UpdateListener {
         }
     }
 
-    // Các hàm setup Currency giữ nguyên
+    /**
+     * Hàm lấy ảnh mặc định hệ thống an toàn
+     */
+    private Image getDefaultImage() {
+        try {
+            return new Image(getClass().getResourceAsStream("/images/default.png"));
+        } catch (Exception e) {
+            try {
+                return new Image(getClass().getResourceAsStream("/com/auction/ui/images/default.png"));
+            } catch (Exception ex) {
+                System.out.println("Lỗi: Không tìm thấy file default.png trong resources.");
+                return null;
+            }
+        }
+    }
+
+    /**
+     * 🔥 HÀM MỚI: Tự động render ảnh từ URL đám mây không chặn luồng UI
+     */
+    private void setupImageColumn() {
+        colImage.setCellValueFactory(new PropertyValueFactory<>("imagePath"));
+        colImage.setCellFactory(column -> new TableCell<Item, String>() {
+            private final ImageView imageView = new ImageView();
+
+            @Override
+            protected void updateItem(String imagePath, boolean empty) {
+                super.updateItem(imagePath, empty);
+                if (empty) {
+                    setGraphic(null);
+                } else {
+                    imageView.setFitWidth(50);
+                    imageView.setFitHeight(50);
+                    imageView.setPreserveRatio(true);
+
+                    // Nếu đường dẫn là link URL Cloudinary hợp lệ
+                    if (imagePath != null && !imagePath.isEmpty() && imagePath.startsWith("http")) {
+                        // Tham số 'true' kích hoạt Background Loading giúp giao diện cuộn mượt
+                        imageView.setImage(new Image(imagePath, true));
+                    } else {
+                        imageView.setImage(getDefaultImage());
+                    }
+                    setGraphic(imageView);
+                }
+            }
+        });
+    }
+
     private void setupItemCurrencyColumn(TableColumn<Item, Double> c, String p) {
         c.setCellValueFactory(new PropertyValueFactory<>(p));
         c.setCellFactory(tc -> new TableCell<Item, Double>() {
@@ -189,11 +245,10 @@ public class AdminController implements ClientManager.UpdateListener {
         if (selected != null && "PENDING".equals(selected.getStatus())) {
             if (adminDAO.updateUserStatus(selected.getUsername(), "APPROVED")){
                 ClientManager.getInstance().sendCommand("USER_UPDATED;" + selected.getId() + ";APPROVED");
-            };
+            }
         }
     }
 
-    // ĐÃ CHỈNH SỬA: Luôn đồng bộ dùng chữ "BLOCKED" (bỏ hẳn banned)
     @FXML private void handleBlockUser() {
         User selected = tableUsers.getSelectionModel().getSelectedItem();
         if (selected == null) {
@@ -206,7 +261,6 @@ public class AdminController implements ClientManager.UpdateListener {
         }
     }
 
-    // CHỨC NĂNG MỚI THÊM: Mở khóa tài khoản (Chuyển trạng thái từ BLOCKED về APPROVED)
     @FXML
     private void handleUnblockUser() {
         User selected = tableUsers.getSelectionModel().getSelectedItem();
@@ -215,7 +269,6 @@ public class AdminController implements ClientManager.UpdateListener {
             return;
         }
 
-        // Chỉ mở khóa khi tài khoản thực sự đang bị BLOCKED
         if ("BLOCKED".equals(selected.getStatus())) {
             if (adminDAO.updateUserStatus(selected.getUsername(), "APPROVED")) {
                 ClientManager.getInstance().sendCommand("USER_UPDATED;" + selected.getId() + ";APPROVED");

@@ -119,6 +119,9 @@ public class AuctionServer {
         } catch (IOException e){
             e.printStackTrace();
         }
+        ItemDAO itemDAO = new ItemDAO();
+        itemDAO.createAuctionState();
+        System.out.println(">>> [SERVER] Đã nạp danh sách phòng đấu giá từ MySQL lên RAM thành công!");
     }
 
     /**

@@ -100,6 +100,8 @@
 
                 <TableView fx:id="tableItems" VBox.vgrow="ALWAYS">
                     <columns>
+                        <TableColumn fx:id="colImage" text="Hình ảnh" prefWidth="80" style="-fx-alignment: CENTER;" />
+
                         <TableColumn fx:id="colName" text="Tên sản phẩm" prefWidth="140" />
                         <TableColumn fx:id="colCategory" text="Loại" prefWidth="80" />
                         <TableColumn fx:id="colSeller" text="Người bán" prefWidth="110" />

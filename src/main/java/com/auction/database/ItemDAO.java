@@ -23,14 +23,18 @@ public class ItemDAO {
         return false;
     }
 
-    // --- 1. Lấy tất cả sản phẩm đang OPEN ---
+    // --- 1. Lấy tất cả sản phẩm đang OPEN (ĐÃ ĐỒNG BỘ GIỜ VỚI DB) ---
     public ObservableList<Item> getAllOpenItems() {
         ObservableList<Item> list = FXCollections.observableArrayList();
-        String sql = "SELECT i.*, u.username AS seller_name FROM items i JOIN users u ON i.seller_id = u.id WHERE i.status = 'OPEN' AND i.end_time > ? ORDER BY i.end_time ASC";
-        try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) list.add(mapResultSetToItem(rs)); }
-        } catch (Exception e) { e.printStackTrace(); }
+        // Dùng trực tiếp NOW() của MySQL thay vì truyền tham số Java để tránh lệch múi giờ/lệch giây
+        String sql = "SELECT i.*, u.username AS seller_name FROM items i JOIN users u ON i.seller_id = u.id WHERE i.status = 'OPEN' AND i.end_time > NOW() ORDER BY i.end_time ASC";
+        try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                list.add(mapResultSetToItem(rs));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         return list;
     }
 
@@ -47,9 +51,9 @@ public class ItemDAO {
 
     // --- 3. Đóng phiên ---
     public boolean closeAuction(int itemId, int winnerId) {
-        String sql = "UPDATE items SET status = 'CLOSED', winner_id = ?, end_time = ?, payment_status = 'PENDING', win_price = current_price WHERE id = ? AND status = 'OPEN'";
+        String sql = "UPDATE items SET status = 'CLOSED', winner_id = ?, end_time = NOW(), payment_status = 'PENDING', win_price = current_price WHERE id = ? AND status = 'OPEN'";
         try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, winnerId); ps.setTimestamp(2, new Timestamp(System.currentTimeMillis())); ps.setInt(3, itemId);
+            ps.setInt(1, winnerId); ps.setInt(2, itemId);
             return ps.executeUpdate() > 0;
         } catch (Exception e) { e.printStackTrace(); return false; }
     }
@@ -86,7 +90,6 @@ public class ItemDAO {
 
     // --- 7. Thêm sản phẩm ---
     public boolean addItem(Item item, int sellerId) {
-        // 🔥 ĐÃ SỬA: Thêm cột image_path vào câu lệnh SQL INSERT và thêm dấu '?' cuối cùng
         String sql = "INSERT INTO items (name, description, startPrice, binPrice, step, category, end_time, status, " +
                 "brand, warranty, state, artist, medium, modelYear, engineType, age, mileage, seller_id, payment_status, image_path) " +
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)";
@@ -96,11 +99,9 @@ public class ItemDAO {
             ps.setDouble(4, item.getBinPrice()); ps.setDouble(5, item.getStep()); ps.setString(6, item.getCategory());
             ps.setTimestamp(7, item.getEndTime()); ps.setString(8, item.getStatus());
 
-            setSpecificData(ps, item); // Hàm này nạp dữ liệu từ vị trí số 9 đến 17
+            setSpecificData(ps, item);
 
             ps.setInt(18, sellerId);
-
-            // 🔥 THÊM MỚI: Gán chuỗi tên file ảnh vào tham số số 19 (Nếu null thì lưu 'default.png')
             ps.setString(19, item.getImagePath() != null ? item.getImagePath() : "default.png");
 
             if (ps.executeUpdate() > 0) {
@@ -132,7 +133,6 @@ public class ItemDAO {
         common.put("startPrice", rs.getDouble("startPrice"));
         common.put("binPrice", rs.getDouble("binPrice"));
 
-        // Ánh xạ dữ liệu mới bảo vệ lỗi null
         common.put("currentPrice", columnExists(rs, "current_price") ? rs.getDouble("current_price") : 0.0);
         common.put("winPrice", columnExists(rs, "win_price") ? rs.getDouble("win_price") : 0.0);
 
@@ -141,8 +141,6 @@ public class ItemDAO {
         common.put("status", rs.getString("status"));
         common.put("sellerName", rs.getString("seller_name"));
         common.put("paymentStatus", columnExists(rs, "payment_status") ? rs.getString("payment_status") : "PENDING");
-
-        // 🔥 THÊM MỚI: Đọc cột image_path từ DB đưa vào map common dữ liệu để ItemFactory xử lý
         common.put("imagePath", columnExists(rs, "image_path") ? rs.getString("image_path") : "default.png");
 
         Map<String, Object> specific = new HashMap<>();
@@ -154,7 +152,8 @@ public class ItemDAO {
     }
 
     public boolean checkAndCloseExpiredItems() {
-        String sqlGetExpired = "SELECT id FROM items WHERE end_time <= ? AND status = 'OPEN'";
+        // Đồng bộ quét theo giờ DB
+        String sqlGetExpired = "SELECT id FROM items WHERE end_time <= NOW() AND status = 'OPEN'";
         String sqlSetWinner = "UPDATE items i " +
                 "JOIN bids b ON b.item_id = i.id " +
                 "SET i.status = 'CLOSED', " +
@@ -173,7 +172,6 @@ public class ItemDAO {
             conn.setAutoCommit(false);
 
             try (PreparedStatement psGet = conn.prepareStatement(sqlGetExpired)) {
-                psGet.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
                 try(ResultSet rs = psGet.executeQuery()){
                     while (rs.next()) {
                         int itemId = rs.getInt("id");
@@ -216,14 +214,13 @@ public class ItemDAO {
     }
 
     public static void processExpiredPayments() {
-        String getExpiredSQL = "SELECT id, winner_id FROM items WHERE end_time < ? - INTERVAL 1 DAY AND payment_status = 'PENDING' AND status = 'CLOSED'";
+        String getExpiredSQL = "SELECT id, winner_id FROM items WHERE end_time < NOW() - INTERVAL 1 DAY AND payment_status = 'PENDING' AND status = 'CLOSED'";
         try (Connection conn = DBContext.getConnection()) {
             conn.setAutoCommit(false);
             try (PreparedStatement stmtGet = conn.prepareStatement(getExpiredSQL);
                  PreparedStatement stmtItem = conn.prepareStatement("UPDATE items SET payment_status = 'EXPIRED' WHERE id = ?");
                  PreparedStatement stmtUser = conn.prepareStatement("UPDATE users SET cancel_count = cancel_count + 1 WHERE id = ?");
                  PreparedStatement stmtBan = conn.prepareStatement("UPDATE users SET status = 'BLOCKED' WHERE id = ? AND cancel_count >= 3")) {
-                stmtGet.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
                 try (ResultSet rs = stmtGet.executeQuery()) {
                     while (rs.next()) {
                         int itemId = rs.getInt("id"); int winnerId = rs.getInt("winner_id");
@@ -284,12 +281,8 @@ public class ItemDAO {
         }
     }
 
-    // =========================================================================
-    // 🔥 HÀM SỐ 8: Lấy danh sách sản phẩm đã tham gia & đã thua (ẩn sau 1 tiếng)
-    // =========================================================================
     public ObservableList<Item> getParticipatedAndLostItems(int userId) {
         ObservableList<Item> list = FXCollections.observableArrayList();
-
         String sql = "SELECT i.*, u.username AS seller_name FROM items i " +
                 "JOIN users u ON i.seller_id = u.id " +
                 "WHERE i.id IN (SELECT DISTINCT item_id FROM bids WHERE user_id = ?) " +
@@ -311,5 +304,20 @@ public class ItemDAO {
             e.printStackTrace();
         }
         return list;
+    }
+
+    public Item getItemById(int itemId) {
+        String sql = "SELECT i.*, u.username AS seller_name FROM items i JOIN users u ON i.seller_id = u.id WHERE i.id = ?";
+        try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, itemId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return mapResultSetToItem(rs);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 }

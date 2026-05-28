@@ -31,6 +31,29 @@ public class ClientHandler implements Runnable, BidObserver {
         BidPublisher.getInstance().registerObserver(this);
     }
 
+    /**
+     * 🔥 HÀM BỔ TRỢ: Tự động khôi phục dữ liệu từ MySQL lên RAM nếu Server vừa restart
+     */
+    private AuctionState getOrCreateAuctionState(int itemId) {
+        AuctionState state = AuctionServer.activeAuctions.get(itemId);
+        if (state == null) {
+            try {
+                // CHÚ Ý: Nếu hàm tìm Item theo ID trong file ItemDAO của ông tên là khác
+                // (Ví dụ: findById, hoặc getItem) thì ông đổi tên hàm itemDAO.getItemById này cho đúng nhé!
+                com.auction.common.item.Item item = itemDAO.getItemById(itemId);
+
+                if (item != null) {
+                    state = new AuctionState(item.getId(), item.getCurrentPrice(), item.getStep(), item.getBinPrice());
+                    AuctionServer.activeAuctions.put(itemId, state);
+                    System.out.println(">>> [SERVER] Đã tự động khôi phục AuctionState lên RAM từ MySQL cho Item ID: " + itemId);
+                }
+            } catch (Exception e) {
+                System.out.println(">>> [SERVER] Lỗi khi tự động nạp dữ liệu từ DB lên RAM: " + e.getMessage());
+            }
+        }
+        return state;
+    }
+
     @Override
     public void run() {
         try {
@@ -54,7 +77,8 @@ public class ClientHandler implements Runnable, BidObserver {
                     int userId = Integer.parseInt(part[2]);
                     double bidAmount = parseDoubleSafe(part[3]);
 
-                    AuctionState state = AuctionServer.activeAuctions.get(itemId);
+                    // Đổi từ gọi Map trực tiếp sang hàm tự động phục hồi nạp chậm
+                    AuctionState state = getOrCreateAuctionState(itemId);
                     if (state == null) {
                         this.sendMessage("ERROR;Phòng đấu giá không tồn tại hoặc đã kết thúc!");
                         continue;
@@ -68,7 +92,9 @@ public class ClientHandler implements Runnable, BidObserver {
                             int highestBidderId = state.getHighestBidderId();
                             if (bidAmount > maxAutoBudget){
                                 state.setManualTopBidder(userId, bidAmount);
-                                AuctionServer.activeAutoBids.get(itemId).remove(highestBidderId);
+                                if (AuctionServer.activeAutoBids.get(itemId) != null) {
+                                    AuctionServer.activeAutoBids.get(itemId).remove(highestBidderId);
+                                }
 
                                 bidDAO.deactivateAutoBid(itemId, highestBidderId);
 
@@ -124,7 +150,8 @@ public class ClientHandler implements Runnable, BidObserver {
                     double autoStep = parseDoubleSafe(part[3]);
                     double stopPrice = parseDoubleSafe(part[4]);
 
-                    AuctionState state = AuctionServer.activeAuctions.get(itemId);
+                    // Đổi sang hàm tự động phục hồi
+                    AuctionState state = getOrCreateAuctionState(itemId);
                     if (state == null){
                         this.sendMessage("ERROR;Phòng đấu giá không tồn tại hoặc đã kết thúc!");
                         continue;
@@ -168,7 +195,9 @@ public class ClientHandler implements Runnable, BidObserver {
                                     newPrice = stopPrice;
                                 }
                                 state.setAutoTopBidder(userId, newPrice, stopPrice);
-                                AuctionServer.activeAutoBids.get(itemId).remove(highestBidderId);
+                                if (AuctionServer.activeAutoBids.get(itemId) != null) {
+                                    AuctionServer.activeAutoBids.get(itemId).remove(highestBidderId);
+                                }
                                 AuctionServer.activeAutoBids.computeIfAbsent(itemId, k -> new ConcurrentHashMap<>()).put(userId, stopPrice);
 
                                 bidDAO.saveOrUpdateAutoBid(itemId, userId, stopPrice);
@@ -227,7 +256,7 @@ public class ClientHandler implements Runnable, BidObserver {
 
                     if (AuctionServer.activeAutoBids.containsKey(itemId)) {
                         AuctionServer.activeAutoBids.get(itemId).remove(userId);
-                        AuctionState state = AuctionServer.activeAuctions.get(itemId);
+                        AuctionState state = getOrCreateAuctionState(itemId);
                         if (state != null) {
                             synchronized (state) {
                                 if (state.getHighestBidderId() == userId) {
@@ -275,7 +304,8 @@ public class ClientHandler implements Runnable, BidObserver {
                     int userId = Integer.parseInt(part[2]);
                     double binPrice = parseDoubleSafe(part[3]);
 
-                    AuctionState state = AuctionServer.activeAuctions.get(itemId);
+                    // Đổi sang hàm tự động phục hồi
+                    AuctionState state = getOrCreateAuctionState(itemId);
                     if (state == null) {
                         this.sendMessage("ERROR;Phòng đấu giá không tồn tại hoặc đã kết thúc!");
                         continue;
@@ -335,16 +365,14 @@ public class ClientHandler implements Runnable, BidObserver {
                 // 8. 🔥 THÊM MỚI: XỬ LÝ ẢNH (UPLOAD & DOWNLOAD TỪ CLIENT)
                 // ================================================================
                 else if (request.startsWith("UPLOAD_IMAGE;")) {
-                    String[] parts = request.split(";", 3); // Cắt chuỗi thành 3 phần: UPLOAD_IMAGE, filename, base64
+                    String[] parts = request.split(";", 3);
                     if (parts.length == 3) {
                         String fileName = parts[1];
                         String base64Data = parts[2];
                         try {
-                            // Tạo thư mục "images" nếu chưa có
                             File dir = new File("images");
                             if (!dir.exists()) dir.mkdirs();
 
-                            // Giải mã chuỗi base64 thành mảng byte và ghi ra ổ cứng
                             byte[] decodedBytes = Base64.getDecoder().decode(base64Data);
                             File imageFile = new File(dir, fileName);
                             try (FileOutputStream fos = new FileOutputStream(imageFile)) {
@@ -361,10 +389,8 @@ public class ClientHandler implements Runnable, BidObserver {
                     if (parts.length >= 2) {
                         String fileName = parts[1];
                         try {
-                            // Tìm file ảnh trong thư mục "images"
                             File imageFile = new File("images", fileName);
                             if (imageFile.exists()) {
-                                // Đọc lên, mã hóa thành base64 và gửi trả Client
                                 byte[] fileBytes = Files.readAllBytes(imageFile.toPath());
                                 String base64Data = Base64.getEncoder().encodeToString(fileBytes);
                                 this.sendMessage("IMAGE_RESPONSE;" + fileName + ";" + base64Data);

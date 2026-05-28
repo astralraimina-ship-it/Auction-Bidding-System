@@ -2,6 +2,7 @@ module com.auction {
     requires javafx.controls;
     requires javafx.fxml;
     requires java.sql;
+    requires cloudinary.core;
 
     // --- CẤP QUYỀN TRUY CẬP DỮ LIỆU ---
     opens com.auction.common.item to javafx.base;
