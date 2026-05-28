@@ -90,6 +90,22 @@
                     </HBox>
                 </VBox>
             </Tab>
+
+            <Tab text="Đang tham gia &amp; Kết quả">
+                <VBox spacing="15" style="-fx-padding: 15 0 0 0;">
+                    <Label text="* Các sản phẩm bạn thua sẽ tự động biến mất sau 1 giờ" style="-fx-font-size: 12px; -fx-text-fill: #e74c3c; -fx-font-style: italic;"/>
+                    <TableView fx:id="tableParticipated" VBox.vgrow="ALWAYS" style="-fx-background-radius: 5; -fx-font-size: 14px;">
+                        <columns>
+                            <TableColumn fx:id="colPartName" text="Tên sản phẩm" prefWidth="250" />
+                            <TableColumn fx:id="colPartPrice" text="Giá đấu hiện tại" prefWidth="150" style="-fx-alignment: CENTER-RIGHT;" />
+                            <TableColumn fx:id="colPartResult" text="Trạng thái" prefWidth="200" style="-fx-alignment: CENTER;" />
+                        </columns>
+                        <columnResizePolicy>
+                            <TableView fx:constant="CONSTRAINED_RESIZE_POLICY" />
+                        </columnResizePolicy>
+                    </TableView>
+                </VBox>
+            </Tab>
         </tabs>
     </TabPane>
 

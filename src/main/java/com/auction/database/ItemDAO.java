@@ -47,7 +47,6 @@ public class ItemDAO {
 
     // --- 3. Đóng phiên ---
     public boolean closeAuction(int itemId, int winnerId) {
-        // ĐÃ SỬA: Cập nhật thêm win_price = current_price khi đóng phiên
         String sql = "UPDATE items SET status = 'CLOSED', winner_id = ?, end_time = ?, payment_status = 'PENDING', win_price = current_price WHERE id = ? AND status = 'OPEN'";
         try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, winnerId); ps.setTimestamp(2, new Timestamp(System.currentTimeMillis())); ps.setInt(3, itemId);
@@ -97,7 +96,7 @@ public class ItemDAO {
                 try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
                     if (generatedKeys.next()) {
                         int generatedId = generatedKeys.getInt(1);
-                        item.setId(generatedId); // 👈 Gán ID vào đây (Đảm bảo class Item của bạn đã có hàm setId)
+                        item.setId(generatedId);
                         return true;
                     }
                 }
@@ -122,7 +121,7 @@ public class ItemDAO {
         common.put("startPrice", rs.getDouble("startPrice"));
         common.put("binPrice", rs.getDouble("binPrice"));
 
-        // Ánh xạ dữ liệu mới
+        // Ánh xạ dữ liệu mới bảo vệ lỗi null
         common.put("currentPrice", columnExists(rs, "current_price") ? rs.getDouble("current_price") : 0.0);
         common.put("winPrice", columnExists(rs, "win_price") ? rs.getDouble("win_price") : 0.0);
 
@@ -141,10 +140,7 @@ public class ItemDAO {
     }
 
     public boolean checkAndCloseExpiredItems() {
-        // 1. Tìm tất cả sản phẩm đã hết giờ đấu giá nhưng trạng thái vẫn đang mở (OPEN)
         String sqlGetExpired = "SELECT id FROM items WHERE end_time <= ? AND status = 'OPEN'";
-
-        // 2. SỬA: Đã đồng bộ sang 'bid_amount' khớp 100% với file BidDAO của bạn
         String sqlSetWinner = "UPDATE items i " +
                 "JOIN bids b ON b.item_id = i.id " +
                 "SET i.status = 'CLOSED', " +
@@ -154,14 +150,13 @@ public class ItemDAO {
                 "WHERE i.id = ? " +
                 "  AND b.bid_amount = (SELECT MAX(bid_amount) FROM bids WHERE item_id = ?)";
 
-        // 3. Câu lệnh hủy phiên đấu giá nếu đếm số lượt đặt giá trong bảng bids bằng 0
         String sqlCancelItem = "UPDATE items SET status = 'CLOSED', payment_status = 'EXPIRED' WHERE id = ? " +
                 "AND (SELECT COUNT(*) FROM bids WHERE item_id = ?) = 0";
 
-        boolean hasChanges = false; // Biến đánh dấu có sự thay đổi dữ liệu hay không
+        boolean hasChanges = false;
 
         try (Connection conn = DBContext.getConnection()) {
-            conn.setAutoCommit(false); // Bật giao dịch an toàn
+            conn.setAutoCommit(false);
 
             try (PreparedStatement psGet = conn.prepareStatement(sqlGetExpired)) {
                 psGet.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
@@ -169,7 +164,6 @@ public class ItemDAO {
                     while (rs.next()) {
                         int itemId = rs.getInt("id");
 
-                        // Thử chốt người thắng cuộc trước
                         try (PreparedStatement psWin = conn.prepareStatement(sqlSetWinner)) {
                             psWin.setInt(1, itemId);
                             psWin.setInt(2, itemId);
@@ -179,11 +173,10 @@ public class ItemDAO {
                                 hasChanges = true;
                                 activeAuctions.remove(itemId);
                                 activeAutoBids.remove(itemId);
-                                continue; // Đã xử lý xong sản phẩm này, chuyển sang sản phẩm tiếp theo
+                                continue;
                             }
                         }
 
-                        // Nếu không chốt được ai (0 rows bị tác động nghĩa là không ai đặt giá) -> Chạy lệnh hủy phiên
                         try (PreparedStatement psCancel = conn.prepareStatement(sqlCancelItem)) {
                             psCancel.setInt(1, itemId);
                             psCancel.setInt(2, itemId);
@@ -197,18 +190,15 @@ public class ItemDAO {
                         }
                     }
                 }
-
-                conn.commit(); // Lưu tất cả thay đổi xuống Database
-
+                conn.commit();
             } catch (SQLException e) {
-                conn.rollback(); // Hoàn tác nếu xảy ra lỗi trong quá trình duyệt
+                conn.rollback();
                 e.printStackTrace();
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
-
-        return hasChanges; // Trả về true/false để luồng tự động nhận biết và phát tín hiệu broadcast
+        return hasChanges;
     }
 
     public static void processExpiredPayments() {
@@ -260,23 +250,52 @@ public class ItemDAO {
             }
         } catch (Exception e) { e.printStackTrace(); return false; }
     }
+
     public void createAuctionState(){
-        try (java.sql.Connection conn = com.auction.database.DBContext.getConnection();
-             java.sql.PreparedStatement ps = conn.prepareStatement("SELECT id, current_price, step, binPrice FROM items WHERE status = 'OPEN'");
-             java.sql.ResultSet rs = ps.executeQuery()) {
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement("SELECT id, current_price, step, binPrice FROM items WHERE status = 'OPEN'");
+             ResultSet rs = ps.executeQuery()) {
 
             while (rs.next()) {
                 int id = rs.getInt("id");
-                double startPrice = rs.getDouble("current_price"); // Lấy giá hiện hành
+                double startPrice = rs.getDouble("current_price");
                 double step = rs.getDouble("step");
                 double binPrice = rs.getDouble("binPrice");
 
-                // Khởi tạo Trọng tài cho từng món hàng đang bán
                 AuctionState state = new AuctionState(id, startPrice, step, binPrice);
                 activeAuctions.put(id, state);
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    // =========================================================================
+    // 🔥 HÀM SỐ 8: Lấy danh sách sản phẩm đã tham gia & đã thua (ẩn sau 1 tiếng)
+    // =========================================================================
+    public ObservableList<Item> getParticipatedAndLostItems(int userId) {
+        ObservableList<Item> list = FXCollections.observableArrayList();
+
+        String sql = "SELECT i.*, u.username AS seller_name FROM items i " +
+                "JOIN users u ON i.seller_id = u.id " +
+                "WHERE i.id IN (SELECT DISTINCT item_id FROM bids WHERE user_id = ?) " +
+                "AND ( " +
+                "    i.status = 'OPEN' " +
+                "    OR (i.status = 'CLOSED' AND (i.winner_id IS NULL OR i.winner_id != ?) AND i.end_time >= DATE_SUB(NOW(), INTERVAL 1 HOUR)) " +
+                ") " +
+                "ORDER BY CASE WHEN i.status = 'OPEN' THEN 1 ELSE 2 END, i.end_time DESC";
+
+        try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            ps.setInt(2, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(mapResultSetToItem(rs));
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return list;
     }
 }

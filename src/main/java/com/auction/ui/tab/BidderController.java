@@ -7,6 +7,7 @@ import com.auction.network.ClientManager;
 import com.auction.ui.dialogs.TransactionController;
 import com.auction.util.NavigationService;
 import javafx.application.Platform;
+import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -16,23 +17,32 @@ import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+
 import java.io.IOException;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 public class BidderController implements ClientManager.UpdateListener {
-    // Các cột cho bảng Sàn đấu giá (Đang mở)
+    // --- Các cột cho bảng Sàn đấu giá (Đang mở) ---
     @FXML private TableView<Item> tableItems;
     @FXML private TableColumn<Item, String> colName, colCategory, colDetails, colSeller;
     @FXML private TableColumn<Item, Double> colStartPrice, colBinPrice;
     @FXML private TableColumn<Item, Timestamp> colTimeLeft;
 
-    // Các cột cho bảng Sản phẩm đã thắng
+    // --- Các cột cho bảng Sản phẩm đã thắng ---
     @FXML private TableView<Item> tableWonItems;
     @FXML private TableColumn<Item, String> colWonName, colWonSeller;
     @FXML private TableColumn<Item, Double> colWonPrice;
     @FXML private TableColumn<Item, Timestamp> colWonDate;
+
+    // --- CÁC CỘT CHO BẢNG MỚI: Đang tham gia & Kết quả (Đã thua) ---
+    @FXML private TableView<Item> tableParticipated;
+    @FXML private TableColumn<Item, String> colPartName;
+    @FXML private TableColumn<Item, Double> colPartPrice;
+    @FXML private TableColumn<Item, String> colPartResult;
 
     @FXML private Label lblBalance;
     @FXML private Button btnRefresh;
@@ -42,16 +52,25 @@ public class BidderController implements ClientManager.UpdateListener {
     private String username;
     private int userId;
 
+    // Biến lưu trữ thể hiện để dùng cho việc Update Real-time
+    private static BidderController instance;
+
+    public static BidderController getInstance() {
+        return instance;
+    }
+
     @FXML
     public void initialize() {
+        instance = this; // Gán instance
+
         setupAuctionColumns();
         setupWonColumns();
+        setupParticipatedColumns(); // Bổ sung setup bảng mới
         setupRowFactory();
 
-        // ĐÃ SỬA: Lắng nghe và bóc tách các phản hồi PAY_SUCCESS / PAY_FAILED từ Server
         ClientManager.getInstance().addUpdateListener(this);
-
     }
+
     @Override
     public void onUpdateReceived(String signal) {
         Platform.runLater(() -> {
@@ -60,12 +79,22 @@ public class BidderController implements ClientManager.UpdateListener {
             }
             else if (signal.equals("PAY_SUCCESS")) {
                 showSimpleAlert("Thành công", "Chúc mừng! Bạn đã hoàn tất thanh toán đơn hàng thành công.", Alert.AlertType.INFORMATION);
-                refreshAll(); // Tự động load lại số dư và ẩn item đã mua
+                refreshAll();
             }
             else if (signal.startsWith("PAY_FAILED")) {
                 String[] parts = signal.split(";");
                 String reason = parts.length > 1 ? parts[1] : "Lỗi xử lý giao dịch hoặc tài khoản không đủ tiền.";
                 showSimpleAlert("Thanh toán thất bại", reason, Alert.AlertType.ERROR);
+            }
+            // 🔥 THÊM MỚI: Bắt gói dữ liệu Real-time cho bảng tham gia
+            else if (signal.startsWith("PARTICIPATED_DATA")) {
+                updateParticipatedTableData(signal);
+            }
+            // 🔥 THÊM MỚI: Nếu có ai đó vừa đặt giá, tự động ép xin lại bảng tham gia
+            else if (signal.startsWith("BID_UPDATE") || signal.startsWith("AUCTION_CLOSED")) {
+                if (userId > 0) {
+                    ClientManager.getInstance().sendCommand("GET_PARTICIPATED_AUCTIONS;" + userId);
+                }
             }
         });
     }
@@ -79,7 +108,6 @@ public class BidderController implements ClientManager.UpdateListener {
         colSeller.setCellValueFactory(new PropertyValueFactory<>("sellerName"));
         setupTimeLeftColumn();
 
-        // ĐỊNH DẠNG LẠI TIỀN TỆ (XÓA SỐ MŨ E) CHO BẢNG SÀN ĐẤU GIÁ
         setupPriceColumnFormat(colStartPrice);
         setupPriceColumnFormat(colBinPrice);
     }
@@ -90,10 +118,8 @@ public class BidderController implements ClientManager.UpdateListener {
         colWonPrice.setCellValueFactory(new PropertyValueFactory<>("winPrice"));
         colWonDate.setCellValueFactory(new PropertyValueFactory<>("endTime"));
 
-        // ĐỊNH DẠNG LẠI TIỀN TỆ (XÓA SỐ MŨ E) CHO BẢNG SẢN PHẨM ĐÃ THẮNG
         setupPriceColumnFormat(colWonPrice);
 
-        // ĐÃ BỔ SUNG: Đếm ngược thời gian giới hạn thanh toán 24h
         colWonDate.setCellFactory(column -> new TableCell<Item, Timestamp>() {
             @Override
             protected void updateItem(Timestamp endTime, boolean empty) {
@@ -103,12 +129,12 @@ public class BidderController implements ClientManager.UpdateListener {
                     setStyle("");
                 } else {
                     LocalDateTime endAuctionTime = endTime.toLocalDateTime();
-                    LocalDateTime paymentDeadline = endAuctionTime.plusDays(1); // Thời hạn 24 giờ
+                    LocalDateTime paymentDeadline = endAuctionTime.plusDays(1);
                     LocalDateTime now = LocalDateTime.now();
 
                     if (now.isAfter(paymentDeadline)) {
                         setText("Quá hạn thanh toán!");
-                        setStyle("-fx-text-fill: #e74c3c; -fx-font-weight: bold;"); // Màu đỏ quá hạn
+                        setStyle("-fx-text-fill: #e74c3c; -fx-font-weight: bold;");
                     } else {
                         Duration d = Duration.between(now, paymentDeadline);
                         long hours = d.toHours();
@@ -116,14 +142,73 @@ public class BidderController implements ClientManager.UpdateListener {
                         long secs = d.toSecondsPart();
 
                         setText(String.format("Còn %02dh:%02dm:%02ds", hours, mins, secs));
-                        setStyle("-fx-text-fill: #e67e22; -fx-font-weight: bold;"); // Màu cam tiến độ
+                        setStyle("-fx-text-fill: #e67e22; -fx-font-weight: bold;");
                     }
                 }
             }
         });
     }
 
-    // Hàm phụ trách ép định dạng tiền Double -> dạng chuỗi phân tách dấu phẩy (%,.0f VNĐ)
+    // --- 🔥 THÊM MỚI: Cài đặt cho bảng "Đang tham gia & Đã thua" ---
+    private void setupParticipatedColumns() {
+        colPartName.setCellValueFactory(new PropertyValueFactory<>("name"));
+        colPartPrice.setCellValueFactory(new PropertyValueFactory<>("currentPrice"));
+        setupPriceColumnFormat(colPartPrice); // Đồng bộ format tiền tệ
+
+        colPartResult.setCellValueFactory(cellData -> {
+            Item item = cellData.getValue();
+            if ("OPEN".equals(item.getStatus())) {
+                return new javafx.beans.property.SimpleStringProperty("Đang tham gia 🔥");
+            } else {
+                return new javafx.beans.property.SimpleStringProperty("Đã thua ❌");
+            }
+        });
+    }
+
+    // --- ĐÃ CẬP NHẬT: Xử lý giải mã và khởi tạo Item đầy đủ step và binPrice ---
+    public void updateParticipatedTableData(String rawData) {
+        String[] parts = rawData.split(";");
+        if (parts.length < 2 || parts[1].isEmpty()) {
+            tableParticipated.setItems(FXCollections.observableArrayList());
+            return;
+        }
+
+        String[] rows = parts[1].split("\\|");
+        List<Item> list = new ArrayList<>();
+
+        for (String row : rows) {
+            String[] fields = row.split(",");
+            // ĐÃ SỬA: Đổi từ 4 thành 6 để đọc đủ 6 tham số gửi từ Server
+            if (fields.length >= 6) {
+                // 1. Tạo Map chứa dữ liệu chung (Common Data)
+                java.util.Map<String, Object> commonData = new java.util.HashMap<>();
+                commonData.put("id", Integer.parseInt(fields[0]));
+                commonData.put("name", fields[1]);
+                commonData.put("currentPrice", Double.parseDouble(fields[2]));
+                commonData.put("step", Double.parseDouble(fields[3]));     // Đã nạp giá trị Bước giá (Step)
+                commonData.put("binPrice", Double.parseDouble(fields[4])); // Đã nạp Giá Mua Đứt (BIN)
+                commonData.put("status", fields[5]);                       // Đẩy status lên vị trí số 5
+
+                // Các trường còn lại để mặc định
+                commonData.put("description", "");
+                commonData.put("startPrice", 0.0);
+                commonData.put("winPrice", 0.0);
+                commonData.put("sellerName", "Unknown");
+                commonData.put("endTime", null);
+                commonData.put("paymentStatus", "PENDING");
+
+                // 2. Tạo Map chứa dữ liệu riêng (Specific Data) trống
+                java.util.Map<String, Object> specificData = new java.util.HashMap<>();
+
+                // 3. Gọi Factory để tạo đối tượng Item cụ thể (mặc định loại "OTHER")
+                Item item = com.auction.common.item.ItemFactory.createItem("OTHER", commonData, specificData);
+
+                list.add(item);
+            }
+        }
+        tableParticipated.setItems(FXCollections.observableArrayList(list));
+    }
+
     private void setupPriceColumnFormat(TableColumn<Item, Double> column) {
         column.setCellFactory(col -> new TableCell<Item, Double>() {
             @Override
@@ -174,6 +259,22 @@ public class BidderController implements ClientManager.UpdateListener {
             });
             return row;
         });
+
+        // Hỗ trợ đúp chuột vào bảng Đang Tham Gia để mở lại phòng đấu giá (nếu phòng đang OPEN)
+        tableParticipated.setRowFactory(tv -> {
+            TableRow<Item> row = new TableRow<>();
+            row.setOnMouseClicked(event -> {
+                if (event.getClickCount() == 2 && (!row.isEmpty())) {
+                    Item item = row.getItem();
+                    if ("OPEN".equals(item.getStatus())) {
+                        openAuctionRoom(item);
+                    } else {
+                        showSimpleAlert("Thông báo", "Phòng đấu giá này đã kết thúc!", Alert.AlertType.INFORMATION);
+                    }
+                }
+            });
+            return row;
+        });
     }
 
     private void openAuctionRoom(Item item) {
@@ -191,8 +292,6 @@ public class BidderController implements ClientManager.UpdateListener {
             stage.initModality(Modality.APPLICATION_MODAL);
             stage.setOnCloseRequest(event -> {
                 System.out.println(">>> Đóng phòng đấu giá, hủy đăng ký Listener.");
-                // controller ở đây chính là thực thể implement UpdateListener
-                // (Hãy chắc chắn rằng BidderAuctionRoomController đã có một biến Listener hoặc bản thân nó chính là Listener)
                 ClientManager.getInstance().removeUpdateListener(controller);
             });
             stage.showAndWait();
@@ -224,6 +323,11 @@ public class BidderController implements ClientManager.UpdateListener {
                     if (tableWonItems != null) tableWonItems.setItems(wonItems);
                     if (btnRefresh != null) btnRefresh.setDisable(false);
                 });
+
+                // Gọi Server để nạp dữ liệu cho Bảng Đang tham gia
+                if (userId > 0) {
+                    ClientManager.getInstance().sendCommand("GET_PARTICIPATED_AUCTIONS;" + userId);
+                }
             } catch (Exception e) {
                 Platform.runLater(() -> { if (btnRefresh != null) btnRefresh.setDisable(false); });
             }
@@ -238,7 +342,6 @@ public class BidderController implements ClientManager.UpdateListener {
             return;
         }
 
-        // 1. Kiểm tra quá hạn thanh toán
         if (selected.getEndTime() != null) {
             LocalDateTime endAuctionTime = selected.getEndTime().toLocalDateTime();
             LocalDateTime paymentDeadline = endAuctionTime.plusDays(1);
@@ -250,12 +353,8 @@ public class BidderController implements ClientManager.UpdateListener {
             }
         }
 
-        // 2. Lấy giá trị số thuần túy, TUYỆT ĐỐI KHÔNG đọc từ chuỗi hiển thị trên bảng
         try {
-            // Lấy giá thực tế từ object (ví dụ: 100000.0)
             double finalPrice = selected.getCurrentPrice();
-
-            // Chuẩn hóa số dư hiển thị: xóa hết ký tự lạ, chỉ giữ lại số từ 0-9
             String cleanBalanceStr = lblBalance.getText().replaceAll("[^0-9]", "");
             double currentBalance = Double.parseDouble(cleanBalanceStr);
 
@@ -264,8 +363,6 @@ public class BidderController implements ClientManager.UpdateListener {
                 return;
             }
 
-            // 3. Gửi lệnh lên Server (truyền số double chuẩn format số máy tính)
-            // Sử dụng String.format với Locale.US để đảm bảo dấu phân tách phần thập phân luôn là dấu chấm, không bị đổi thành dấu phẩy
             String command = String.format(java.util.Locale.US, "PAY;%d;%d;%.2f", selected.getId(), this.userId, finalPrice);
             System.out.println("Gửi yêu cầu thanh toán hợp lệ: " + command);
             ClientManager.getInstance().sendCommand(command);
@@ -296,17 +393,16 @@ public class BidderController implements ClientManager.UpdateListener {
         }
     }
 
-    // BỔ SUNG PHƯƠNG THỨC ĐĂNG XUẤT THEO ĐÚNG FXML
     @FXML
     private void handleLogout() {
         if (lblBalance != null && lblBalance.getScene() != null) {
+            instance = null; // Xóa instance khi đăng xuất
             ClientManager.getInstance().removeUpdateListener(this);
             Stage stage = (Stage) lblBalance.getScene().getWindow();
             NavigationService.navigate(stage, "/com/auction/ui/login.fxml", "UET Auction - Đăng nhập");
         }
     }
 
-    // Hàm phụ trợ dùng chung để hiển thị Alert nhanh gọn, không vỡ layout
     private void showSimpleAlert(String title, String content, Alert.AlertType type) {
         Alert alert = new Alert(type);
         alert.setTitle(title);

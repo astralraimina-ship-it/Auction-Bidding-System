@@ -35,6 +35,7 @@ public class ClientHandler implements Runnable, BidObserver {
             String request;
 
             while ((request = in.readLine()) != null) {
+                System.out.println(request);
 
                 if ("PING".equals(request)) {
                     continue;
@@ -52,7 +53,7 @@ public class ClientHandler implements Runnable, BidObserver {
                     AuctionState state = AuctionServer.activeAuctions.get(itemId);
                     if (state == null) {
                         this.sendMessage("ERROR;Phòng đấu giá không tồn tại hoặc đã kết thúc!");
-                        return;
+                        continue;
                     }
 
                     synchronized (state){
@@ -125,7 +126,7 @@ public class ClientHandler implements Runnable, BidObserver {
                     AuctionState state = AuctionServer.activeAuctions.get(itemId);
                     if (state == null){
                         this.sendMessage("ERROR;Phòng đấu giá không tồn tại hoặc đã kết thúc!");
-                        return;
+                        continue;
                     }
 
                     synchronized (state) {
@@ -136,7 +137,7 @@ public class ClientHandler implements Runnable, BidObserver {
 
                         if (stopPrice <= currentPrice){
                             this.sendMessage("ERROR;Ngưỡng dừng Auto-Bid (" + stopPrice + ") phải lớn hơn giá hiện tại (" + currentPrice + ")!");
-                            return;
+                            continue;
                         }
 
                         // Nếu chính người này đang giữ đỉnh, chỉ cấu hình Budget, GIỮ NGUYÊN GIÁ hiện tại
@@ -149,7 +150,7 @@ public class ClientHandler implements Runnable, BidObserver {
 
                             this.sendMessage("AUTOBID_STATUS;ACTIVE;" + userId + ";" + stopPrice);
                             BidPublisher.getInstance().notifyObservers();
-                            return;
+                            continue;
                         }
 
                         if (state.isTopBidderAuto()){
@@ -278,7 +279,7 @@ public class ClientHandler implements Runnable, BidObserver {
                     AuctionState state = AuctionServer.activeAuctions.get(itemId);
                     if (state == null) {
                         this.sendMessage("ERROR;Phòng đấu giá không tồn tại hoặc đã kết thúc!");
-                        return;
+                        continue;
                     }
 
                     synchronized (state) {
@@ -293,17 +294,45 @@ public class ClientHandler implements Runnable, BidObserver {
                                 AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + highestBidderId + ";" + binPrice);
                                 closeAuction(itemId, highestBidderId);
                                 BidPublisher.getInstance().notifyObservers();
-                                continue; // Ngắt luồng xử lý tại đây để bỏ qua đoạn code BIN thủ công phía dưới
+                                continue;
                             }
                         }
 
-                        // Trường hợp không có Autobid hoặc giá trần Autobid không với tới giá BIN
                         boolean success = bidDAO.placeBid(itemId, userId, binPrice);
                         if (success){
                             closeAuction(itemId, userId);
                         }
                         BidPublisher.getInstance().notifyObservers();
                     }
+                }
+                // ================================================================
+                // 7. KHI CLIENT GỬI LỆNH XIN BẢNG SẢN PHẨM THAM GIA
+                // ================================================================
+                else if (request.startsWith("GET_PARTICIPATED_AUCTIONS")) {
+                    String[] parts = request.split(";");
+                    int userId = Integer.parseInt(parts[1]);
+
+                    javafx.collections.ObservableList<com.auction.common.item.Item> items = itemDAO.getParticipatedAndLostItems(userId);
+
+                    StringBuilder sb = new StringBuilder("PARTICIPATED_DATA;");
+
+                    if (items != null && !items.isEmpty()) {
+                        for (com.auction.common.item.Item item : items) {
+                            // ĐÃ SỬA: Bổ sung step và binPrice vào gói tin trả về
+                            sb.append(item.getId()).append(",")
+                                    .append(item.getName()).append(",")
+                                    .append(item.getCurrentPrice()).append(",")
+                                    .append(item.getStep()).append(",")
+                                    .append(item.getBinPrice()).append(",")
+                                    .append(item.getStatus()).append("|");
+                        }
+
+                        if (sb.charAt(sb.length() - 1) == '|') {
+                            sb.deleteCharAt(sb.length() - 1);
+                        }
+                    }
+
+                    this.sendMessage(sb.toString());
                 }
                 else if (request.startsWith("PAY")) {
                     String[] part = request.split(";");
