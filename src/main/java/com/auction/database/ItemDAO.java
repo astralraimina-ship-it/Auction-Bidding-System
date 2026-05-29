@@ -42,34 +42,55 @@ public class ItemDAO {
         return list;
     }
 
-    // --- 2. Lấy danh sách sản phẩm thắng ---
+    // --- 2. Lấy danh sách sản phẩm thắng (ĐỒNG BỘ CHUẨN ĐIỀU KIỆN ĐỂ HIỂN THỊ) ---
     public ObservableList<Item> getWonItems(int userId) {
         ObservableList<Item> list = FXCollections.observableArrayList();
-        String sql = "SELECT i.*, u.username AS seller_name FROM items i JOIN users u ON i.seller_id = u.id WHERE i.status = 'CLOSED' AND i.winner_id = ? AND i.payment_status = 'PENDING' ORDER BY i.end_time DESC";
+        String sql = "SELECT i.*, u.username AS seller_name FROM items i " +
+                "JOIN users u ON i.seller_id = u.id " +
+                "WHERE i.status = 'CLOSED' AND i.winner_id = ? AND i.payment_status = 'PENDING' " +
+                "ORDER BY i.end_time DESC";
         try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, userId);
-            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) list.add(mapResultSetToItem(rs)); }
-        } catch (Exception e) { e.printStackTrace(); }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(mapResultSetToItem(rs));
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         return list;
     }
 
-    // --- 3. Đóng phiên (ĐÃ SỬA: Tự động dọn dẹp RAM khi đóng phiên thành công) ---
+    // --- 3. Đóng phiên (SỬA LỖI CHÍ MẠNG: Đưa trực tiếp giá từ RAM xuống để tránh lỗi sai tên cột) ---
     public boolean closeAuction(int itemId, int winnerId) {
-        String sql = "UPDATE items SET status = 'CLOSED', winner_id = ?, end_time = NOW(), payment_status = 'PENDING', win_price = currentPrice WHERE id = ? AND status = 'OPEN'";
+        double winPrice = 0.0;
+        AuctionState state = activeAuctions.get(itemId);
+        if (state != null) {
+            winPrice = state.getCurrentPrice();
+        }
+
+        String sql = "UPDATE items SET status = 'CLOSED', winner_id = ?, end_time = NOW(), payment_status = 'PENDING', win_price = ? WHERE id = ? AND status = 'OPEN'";
         try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, winnerId); ps.setInt(2, itemId);
+            ps.setInt(1, winnerId);
+            ps.setDouble(2, winPrice);
+            ps.setInt(3, itemId);
+
             boolean success = ps.executeUpdate() > 0;
             if (success) {
-                // Đồng bộ dọn dẹp bộ nhớ đệm RAM ngay lập tức
+                // Tự động dọn dẹp các Map lưu trữ trên RAM sau khi lưu DB thành công
                 activeAuctions.remove(itemId);
                 activeAutoBids.remove(itemId);
-                System.out.println(">>> [DB -> RAM] Đã dọn dẹp dữ liệu phiên đấu giá ID " + itemId + " trên RAM.");
+                System.out.println(">>> [DB -> RAM] Đã lưu thông tin người thắng và dọn dẹp phòng đấu giá ID " + itemId + " trên RAM.");
             }
             return success;
-        } catch (Exception e) { e.printStackTrace(); return false; }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
-    // --- 4. Gia hạn (ĐÃ SỬA: Hỗ trợ Anti-Snipe tăng hạn thời gian thực dưới DB) ---
+    // --- 4. Gia hạn (Hỗ trợ Anti-Snipe tăng hạn thời gian thực dưới DB) ---
     public boolean extendAuctionTime(int itemId, int minutesToAdd) {
         String sql = "UPDATE items SET end_time = DATE_ADD(end_time, INTERVAL ? MINUTE) WHERE id = ? AND status = 'OPEN'";
         try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -144,7 +165,6 @@ public class ItemDAO {
         common.put("startPrice", rs.getDouble("startPrice"));
         common.put("binPrice", rs.getDouble("binPrice"));
 
-        // Kiểm tra an toàn cả dạng camelCase và snake_case của cột giá hiện tại để tránh ném lỗi map dữ liệu
         if (columnExists(rs, "currentPrice")) {
             common.put("currentPrice", rs.getDouble("currentPrice"));
         } else if (columnExists(rs, "current_price")) {
@@ -259,7 +279,6 @@ public class ItemDAO {
     }
 
     public boolean payForItem(int itemId, int userId, double clientAmount) {
-        // Đã đồng bộ kiểm tra an toàn theo cột giá thực tế
         String sqlCheck = "SELECT win_price, currentPrice, seller_id FROM items WHERE id = ? AND winner_id = ? AND payment_status = 'PENDING'";
         try (Connection conn = DBContext.getConnection()) {
             conn.setAutoCommit(false);
@@ -269,7 +288,6 @@ public class ItemDAO {
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
                         double win = rs.getDouble("win_price");
-                        // Dự phòng linh hoạt trường hợp win_price chưa kịp cập nhật thì lấy tạm currentPrice
                         priceToPay = (win > 0) ? win : rs.getDouble("currentPrice");
                         sellerId = rs.getInt("seller_id");
                     } else { conn.rollback(); return false; }
@@ -332,7 +350,6 @@ public class ItemDAO {
         return list;
     }
 
-    // --- 12. Lấy chi tiết Item theo ID (ĐÃ SỬA: Thay đổi câu SQL đồng bộ chính xác cấu trúc bảng để Anti-Snipe lấy dữ liệu mượt mà) ---
     public Item getItemById(int itemId) {
         String sql = "SELECT i.*, u.username AS seller_name FROM items i JOIN users u ON i.seller_id = u.id WHERE i.id = ?";
         try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
