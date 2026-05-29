@@ -54,6 +54,9 @@ public class BidderController implements ClientManager.UpdateListener {
     private String username;
     private int userId;
 
+    // 🔥 Quản lý trạng thái hiển thị động nâng cao của từng Item (Độc lập với cấu trúc Model cơ bản)
+    private java.util.Map<Integer, String> participatedStatuses = new java.util.HashMap<>();
+
     private static BidderController instance;
 
     public static BidderController getInstance() {
@@ -96,7 +99,6 @@ public class BidderController implements ClientManager.UpdateListener {
                     ClientManager.getInstance().sendCommand("GET_PARTICIPATED_AUCTIONS;" + userId);
                 }
             }
-            // ✂️ ĐÃ XÓA SẠCH: Khối nhận lệnh Socket IMAGE_RESPONSE cồng kềnh cũ đã biến mất!
         });
     }
 
@@ -116,7 +118,6 @@ public class BidderController implements ClientManager.UpdateListener {
         }
     }
 
-    // --- 🚀 ĐÃ SỬA CHÍ MẠNG: Đọc trực tiếp URL từ Cloudinary chạy ngầm siêu mượt ---
     private void setupImageColumn(TableColumn<Item, String> column) {
         if (column != null) {
             column.setCellValueFactory(new PropertyValueFactory<>("imagePath"));
@@ -133,12 +134,9 @@ public class BidderController implements ClientManager.UpdateListener {
                         imageView.setFitHeight(50);
                         imageView.setPreserveRatio(true);
 
-                        // Kiểm tra nếu đường dẫn hợp lệ và bắt đầu bằng http (Link Cloudinary)
                         if (imagePath != null && !imagePath.isEmpty() && imagePath.startsWith("http")) {
-                            // ✅ Tham số 'true' ở cuối kích hoạt Background Loading giúp app không bị giật lag khi cuộn bảng
                             imageView.setImage(new Image(imagePath, true));
                         } else {
-                            // Nếu trống hoặc dính ảnh cũ dạng local -> Ốp ảnh mặc định
                             imageView.setImage(getDefaultImage());
                         }
                         setGraphic(imageView);
@@ -202,6 +200,7 @@ public class BidderController implements ClientManager.UpdateListener {
         });
     }
 
+    // --- 🚀 ĐÃ CẬP NHẬT: Thêm định dạng màu sắc & chữ đậm phân biệt rõ ràng 3 trạng thái của phiên đang mở ---
     private void setupParticipatedColumns() {
         setupImageColumn(colPartImage);
 
@@ -211,37 +210,69 @@ public class BidderController implements ClientManager.UpdateListener {
 
         colPartResult.setCellValueFactory(cellData -> {
             Item item = cellData.getValue();
-            if ("OPEN".equals(item.getStatus())) {
-                return new javafx.beans.property.SimpleStringProperty("Đang tham gia 🔥");
-            } else {
+            if (!"OPEN".equals(item.getStatus())) {
                 return new javafx.beans.property.SimpleStringProperty("Đã thua ❌");
+            }
+            String statusText = participatedStatuses.getOrDefault(item.getId(), "Bị vượt giá ❌");
+            return new javafx.beans.property.SimpleStringProperty(statusText);
+        });
+
+        // Đổ màu trực quan theo từng trạng thái cụ thể giống bảng thời gian
+        colPartResult.setCellFactory(column -> new TableCell<Item, String>() {
+            @Override
+            protected void updateItem(String status, boolean empty) {
+                super.updateItem(status, empty);
+                if (empty || status == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(status);
+                    if (status.contains("giữ giá")) {
+                        setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold;"); // Màu xanh lá cho giữ giá kì cựu
+                    } else if (status.contains("Autobid")) {
+                        setStyle("-fx-text-fill: #2980b9; -fx-font-weight: bold;"); // Màu xanh dương công nghệ cho Autobid
+                    } else if (status.contains("vượt giá")) {
+                        setStyle("-fx-text-fill: #e74c3c; -fx-font-weight: bold;"); // Màu đỏ cảnh báo khi bị đè giá
+                    } else {
+                        setStyle("-fx-text-fill: #7f8c8d; -fx-font-weight: bold;"); // Màu xám khi phòng đấu giá đã đóng và thua cuộc
+                    }
+                }
             }
         });
     }
 
+    // --- 🚀 ĐÃ CẬP NHẬT: Phân tích cú pháp thông minh từ Server trả về để nhận diện cờ Autobid ---
     public void updateParticipatedTableData(String rawData) {
         String[] parts = rawData.split(";");
         if (parts.length < 2 || parts[1].isEmpty()) {
             tableParticipated.setItems(FXCollections.observableArrayList());
+            participatedStatuses.clear();
             return;
         }
 
         String[] rows = parts[1].split("\\|");
         List<Item> list = new ArrayList<>();
+        participatedStatuses.clear();
 
         for (String row : rows) {
             String[] fields = row.split(",");
             if (fields.length >= 6) {
-                java.util.Map<String, Object> commonData = new java.util.HashMap<>();
-                commonData.put("id", Integer.parseInt(fields[0]));
-                commonData.put("name", fields[1]);
-                commonData.put("currentPrice", Double.parseDouble(fields[2]));
-                commonData.put("step", Double.parseDouble(fields[3]));
-                commonData.put("binPrice", Double.parseDouble(fields[4]));
-                commonData.put("status", fields[5]);
+                int itemId = Integer.parseInt(fields[0]);
+                String name = fields[1];
+                double currentPrice = Double.parseDouble(fields[2]);
+                double step = Double.parseDouble(fields[3]);
+                double binPrice = Double.parseDouble(fields[4]);
+                String status = fields[5];
+                String imagePath = fields.length > 6 ? fields[6] : "default.png";
 
-                // ⚠️ Nếu Server trả về link ảnh chuẩn từ DB trong chuỗi ghép thì parse vào, tạm thời lấy mặc định nếu trống
-                commonData.put("imagePath", fields.length > 6 ? fields[6] : "default.png");
+                java.util.Map<String, Object> commonData = new java.util.HashMap<>();
+                commonData.put("id", itemId);
+                commonData.put("name", name);
+                commonData.put("currentPrice", currentPrice);
+                commonData.put("step", step);
+                commonData.put("binPrice", binPrice);
+                commonData.put("status", status);
+                commonData.put("imagePath", imagePath);
 
                 commonData.put("description", "");
                 commonData.put("startPrice", 0.0);
@@ -254,6 +285,44 @@ public class BidderController implements ClientManager.UpdateListener {
                 Item item = com.auction.common.item.ItemFactory.createItem("OTHER", commonData, specificData);
 
                 list.add(item);
+
+                // --- 🤖 THUẬT TOÁN PHÂN TÍCH TRẠNG THÁI NÂNG CAO ---
+                String statusText = "Bị vượt giá ❌"; // Trạng thái sàn mặc định khi phiên OPEN
+                if (!"OPEN".equals(status)) {
+                    statusText = "Đã thua ❌";
+                } else {
+                    boolean isAutobidActive = false;
+                    boolean isUserHoldingPrice = false;
+
+                    // Quét toàn bộ các trường bổ sung ở phía cuối chuỗi trả về từ Server (index từ 6 trở đi)
+                    for (int i = 6; i < fields.length; i++) {
+                        String rawToken = fields[i].trim().toUpperCase();
+
+                        if (rawToken.equals("AUTOBID") || rawToken.equals("AUTO") || rawToken.equals("TRUE_AUTO")) {
+                            isAutobidActive = true;
+                        } else if (rawToken.equals("HOLDING") || rawToken.equals("TRUE") || rawToken.equals("1")) {
+                            isUserHoldingPrice = true;
+                        } else {
+                            // Hỗ trợ trường hợp server trả về trực tiếp ID người trả giá cao nhất thay vì chuỗi flag
+                            try {
+                                int currentHighestBidderId = Integer.parseInt(rawToken);
+                                if (currentHighestBidderId == this.userId) {
+                                    isUserHoldingPrice = true;
+                                }
+                            } catch (NumberFormatException ignored) {}
+                        }
+                    }
+
+                    // Ưu tiên hiển thị trạng thái hoạt động Autobid lên trước nếu tính năng đang bật
+                    if (isAutobidActive) {
+                        statusText = "Đang Autobid 🤖";
+                    } else if (isUserHoldingPrice) {
+                        statusText = "Đang giữ giá 👑";
+                    } else {
+                        statusText = "Bị vượt giá ❌";
+                    }
+                }
+                participatedStatuses.put(itemId, statusText);
             }
         }
         tableParticipated.setItems(FXCollections.observableArrayList(list));

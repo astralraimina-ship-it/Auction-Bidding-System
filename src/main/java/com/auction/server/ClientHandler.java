@@ -383,22 +383,56 @@ public class ClientHandler implements Runnable, BidObserver {
                 // ================================================================
                 // 7. KHI CLIENT GỬI LỆNH XIN BẢNG SẢN PHẨM THAM GIA
                 // ================================================================
+                // ====================================================================
+// 7. KHI CLIENT GỬI LỆNH XIN BẢNG SẢN PHẨM THAM GIA (ĐÃ SỬA ĐỂ ĐỒNG BỘ 3 TRẠNG THÁI)
+// ====================================================================
                 else if (request.startsWith("GET_PARTICIPATED_AUCTIONS")) {
                     String[] parts = request.split(";");
-                    int userId = Integer.parseInt(parts[1]);
+                    int targetUserId = Integer.parseInt(parts[1]);
 
-                    javafx.collections.ObservableList<com.auction.common.item.Item> items = itemDAO.getParticipatedAndLostItems(userId);
+                    javafx.collections.ObservableList<com.auction.common.item.Item> items = itemDAO.getParticipatedAndLostItems(targetUserId);
 
                     StringBuilder sb = new StringBuilder("PARTICIPATED_DATA;");
 
                     if (items != null && !items.isEmpty()) {
                         for (com.auction.common.item.Item item : items) {
-                            sb.append(item.getId()).append(",")
+                            int itemId = item.getId();
+
+                            // 1. Lấy đường dẫn ảnh an toàn (mặc định là default.png nếu trống)
+                            String imagePath = "default.png";
+                            if (item.getImagePath() != null && !item.getImagePath().trim().isEmpty()) {
+                                imagePath = item.getImagePath();
+                            }
+
+                            // 2. Kiểm tra trạng thái Giữ giá theo thời gian thực từ bộ nhớ RAM (AuctionServer.activeAuctions)
+                            String holdingFlag = "OUTBID";
+                            AuctionState state = AuctionServer.activeAuctions.get(itemId);
+                            if (state != null) {
+                                if (state.getHighestBidderId() == targetUserId) {
+                                    holdingFlag = "HOLDING";
+                                }
+                            }
+
+                            // 3. Kiểm tra trạng thái AutoBid của User này từ bộ nhớ RAM (AuctionServer.activeAutoBids)
+                            String autobidFlag = "NONE";
+                            if (AuctionServer.activeAutoBids.containsKey(itemId)) {
+                                java.util.Map<Integer, Double> userBids = AuctionServer.activeAutoBids.get(itemId);
+                                if (userBids != null && userBids.containsKey(targetUserId)) {
+                                    autobidFlag = "AUTOBID";
+                                }
+                            }
+
+                            // Ghép chuỗi chuẩn 9 trường gửi về cho Client bóc tách:
+                            // fields[0]=id, [1]=name, [2]=price, [3]=step, [4]=bin, [5]=status, [6]=imagePath, [7]=holding, [8]=autobid
+                            sb.append(itemId).append(",")
                                     .append(item.getName()).append(",")
                                     .append(item.getCurrentPrice()).append(",")
                                     .append(item.getStep()).append(",")
                                     .append(item.getBinPrice()).append(",")
-                                    .append(item.getStatus()).append("|");
+                                    .append(item.getStatus()).append(",")
+                                    .append(imagePath).append(",")   // Trường số 6
+                                    .append(holdingFlag).append(",") // Trường số 7
+                                    .append(autobidFlag).append("|"); // Trường số 8
                         }
 
                         if (sb.charAt(sb.length() - 1) == '|') {
