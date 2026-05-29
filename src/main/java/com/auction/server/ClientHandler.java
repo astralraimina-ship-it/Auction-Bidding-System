@@ -129,7 +129,7 @@ public class ClientHandler implements Runnable, BidObserver {
                                 AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + userId + ";" + bidAmount);
 
                                 if (state.isBin()){
-                                    closeAuction(itemId, userId);
+                                    closeAuction(itemId, userId, bidAmount); // ĐÃ SỬA: Pass giá bid cao nhất làm giá đóng phòng công bằng
                                 }
                             }
                             else if (bidAmount == maxAutoBudget) {
@@ -140,7 +140,7 @@ public class ClientHandler implements Runnable, BidObserver {
                                 bidDAO.placeBid(itemId, highestBidderId, maxAutoBudget);
                                 AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + highestBidderId + ";" + maxAutoBudget);
                                 if (state.isBin()){
-                                    closeAuction(itemId, highestBidderId);
+                                    closeAuction(itemId, highestBidderId, maxAutoBudget); // ĐÃ SỬA: Chốt theo maxBudget của autobid
                                 }
                             }
                             else{
@@ -157,7 +157,7 @@ public class ClientHandler implements Runnable, BidObserver {
                                 bidDAO.placeBid(itemId, highestBidderId, newPrice);
                                 AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + highestBidderId + ";" + newPrice);
                                 if (state.isBin()){
-                                    closeAuction(itemId, highestBidderId);
+                                    closeAuction(itemId, highestBidderId, newPrice); // ĐÃ SỬA: Chốt theo giá phản đòn của autobid
                                 }
                             }
                         }
@@ -166,7 +166,7 @@ public class ClientHandler implements Runnable, BidObserver {
                             bidDAO.placeBid(itemId, userId, bidAmount);
                             AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + userId + ";" + bidAmount);
                             if (state.isBin()){
-                                closeAuction(itemId, userId);
+                                closeAuction(itemId, userId, bidAmount); // ĐÃ SỬA: Gửi giá bid trực tiếp
                             }
                         }
                         BidPublisher.getInstance().notifyObservers();
@@ -230,7 +230,7 @@ public class ClientHandler implements Runnable, BidObserver {
                                 bidDAO.placeBid(itemId, highestBidderId, stopPrice);
                                 AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + highestBidderId + ";" + stopPrice);
                                 if (state.isBin()){
-                                    closeAuction(itemId, highestBidderId);
+                                    closeAuction(itemId, highestBidderId, stopPrice); // ĐÃ SỬA: Đồng bộ giá chốt
                                 }
                             }
                             else if (stopPrice > currentTopBudget){
@@ -254,7 +254,7 @@ public class ClientHandler implements Runnable, BidObserver {
                                 bidDAO.placeBid(itemId, userId, newPrice);
                                 AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + userId + ";" + newPrice);
                                 if (state.isBin()){
-                                    closeAuction(itemId, userId);
+                                    closeAuction(itemId, userId, newPrice); // ĐÃ SỬA: Đồng bộ giá chốt
                                 }
                             }
                             else{
@@ -267,7 +267,7 @@ public class ClientHandler implements Runnable, BidObserver {
                                 bidDAO.placeBid(itemId, highestBidderId, counterPrice);
                                 AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + highestBidderId + ";" + counterPrice);
                                 if (state.isBin()){
-                                    closeAuction(itemId, highestBidderId);
+                                    closeAuction(itemId, highestBidderId, counterPrice); // ĐÃ SỬA: Đồng bộ giá chốt
                                 }
                             }
                         }
@@ -286,7 +286,7 @@ public class ClientHandler implements Runnable, BidObserver {
                             bidDAO.placeBid(itemId, userId, newPrice);
                             AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + userId + ";" + newPrice);
                             if (state.isBin()){
-                                closeAuction(itemId, userId);
+                                closeAuction(itemId, userId, newPrice); // ĐÃ SỬA: Đồng bộ giá chốt
                             }
                         }
                         BidPublisher.getInstance().notifyObservers();
@@ -367,7 +367,7 @@ public class ClientHandler implements Runnable, BidObserver {
                                 state.setCurrentPrice(binPrice);
                                 bidDAO.placeBid(itemId, highestBidderId, binPrice);
                                 AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + highestBidderId + ";" + binPrice);
-                                closeAuction(itemId, highestBidderId);
+                                closeAuction(itemId, highestBidderId, binPrice); // ĐÃ SỬA: Chốt luôn mức giá mua đứt binPrice cho người treo Autobid cao
                                 BidPublisher.getInstance().notifyObservers();
                                 continue;
                             }
@@ -375,7 +375,7 @@ public class ClientHandler implements Runnable, BidObserver {
 
                         boolean success = bidDAO.placeBid(itemId, userId, binPrice);
                         if (success){
-                            closeAuction(itemId, userId);
+                            closeAuction(itemId, userId, binPrice); // ĐÃ SỬA THÀNH CÔNG: Gọi hàm 3 tham số và truyền trực tiếp giá trị 1 Triệu (binPrice) vào đây
                         }
                         BidPublisher.getInstance().notifyObservers();
                     }
@@ -520,8 +520,14 @@ public class ClientHandler implements Runnable, BidObserver {
         }
     }
 
+    // --- ĐÃ SỬA HOÀN CHỈNH: Hàm đóng phiên Overloading 2 tham số để tương thích luồng cũ ---
     public void closeAuction(int itemId, int userId){
-        boolean updateSuccess = itemDAO.closeAuction(itemId, userId);
+        closeAuction(itemId, userId, 0.0);
+    }
+
+    // --- ĐÃ THÊM MỚI: Hàm đóng phiên đầy đủ nhận giá thực tế (Thỏa mãn yêu cầu gán giá 1M khi bấm BIN) ---
+    public void closeAuction(int itemId, int userId, double realWinPrice){
+        boolean updateSuccess = itemDAO.closeAuction(itemId, userId, realWinPrice);
         if (updateSuccess){
             AuctionServer.broadcast("Closed");
             AuctionServer.activeAuctions.remove(itemId);

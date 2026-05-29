@@ -62,12 +62,12 @@ public class ItemDAO {
         return list;
     }
 
-    // --- 3. Đóng phiên (Dùng Overloading 2 tham số để tương thích ngược, KHÔNG LO LỖI 3 ARGUMENTS) ---
+    // --- 3. Đóng phiên (Dùng Overloading 2 tham số để tương thích ngược, KHÔNG LO LỖI ARGUMENTS) ---
     public boolean closeAuction(int itemId, int winnerId) {
         return closeAuction(itemId, winnerId, 0.0);
     }
 
-    // --- 3.1 Đóng phiên đầy đủ (3 tham số - xử lý chính xác giá BIN và cứu dữ liệu từ DB) ---
+    // --- 3.1 Đóng phiên đầy đủ (3 tham số - ÉP CẢ CURRENT_PRICE VÀ WIN_PRICE ĐỒNG BỘ THEO GIÁ CUỐI BIN) ---
     public boolean closeAuction(int itemId, int winnerId, double realWinPrice) {
         double winPrice = realWinPrice;
 
@@ -92,17 +92,19 @@ public class ItemDAO {
             }
         }
 
-        String sql = "UPDATE items SET status = 'CLOSED', winner_id = ?, end_time = NOW(), payment_status = 'PENDING', win_price = ? WHERE id = ? AND status = 'OPEN'";
+        // ĐÃ SỬA: Cập nhật đồng thời cả win_price và current_price thành mức giá chốt cuối (1M) để không bị nhảy về giá bid cũ (200k)
+        String sql = "UPDATE items SET status = 'CLOSED', winner_id = ?, end_time = NOW(), payment_status = 'PENDING', win_price = ?, current_price = ? WHERE id = ? AND status = 'OPEN'";
         try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, winnerId);
             ps.setDouble(2, winPrice);
-            ps.setInt(3, itemId);
+            ps.setDouble(3, winPrice); // Ghi đè giá hiện tại bằng giá thắng cuộc
+            ps.setInt(4, itemId);
 
             boolean success = ps.executeUpdate() > 0;
             if (success) {
                 activeAuctions.remove(itemId);
                 activeAutoBids.remove(itemId);
-                System.out.println(">>> [DB -> RAM] Đã đóng phiên ID " + itemId + " với giá thắng thực tế: " + winPrice);
+                System.out.println(">>> [DB -> RAM] Đã chốt phiên ID " + itemId + ". Giá win và giá hiện tại đồng bộ thành: " + winPrice);
             }
             return success;
         } catch (Exception e) {
@@ -307,7 +309,7 @@ public class ItemDAO {
         } catch (Exception e) { e.printStackTrace(); }
     }
 
-    // --- 11. Xử lý Thanh toán đơn hàng (ĐÃ SỬA CỘT THÀNH current_price CHUẨN DB) ---
+    // --- 11. Xử lý Thanh toán đơn hàng ---
     public boolean payForItem(int itemId, int userId, double clientAmount) {
         String sqlCheck = "SELECT win_price, current_price, seller_id FROM items WHERE id = ? AND winner_id = ? AND payment_status = 'PENDING'";
         try (Connection conn = DBContext.getConnection()) {
