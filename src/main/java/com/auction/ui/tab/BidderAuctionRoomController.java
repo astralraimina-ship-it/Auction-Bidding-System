@@ -236,9 +236,6 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
                     }
                 }
             }
-            else if (signal.equalsIgnoreCase("AntiSnipe")) {
-                handleAntiSnipe(currentItem);
-            }
             else if (signal.equalsIgnoreCase("Closed")) {
                 logAction("Hệ thống: Phiên đấu giá đã kết thúc.");
 
@@ -388,24 +385,6 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
         Optional<ButtonType> result = alert.showAndWait();
         if (result.isPresent() && result.get() == ButtonType.OK) {
             ClientManager.getInstance().sendCommand("BIN;" + currentItem.getId() + ";" + currentUserId + ";" + currentItem.getBinPrice());
-        }
-    }
-
-    private void handleAntiSnipe(Item item) {
-        if (item == null || item.getEndTime() == null) return;
-
-        long timeLeft = item.getEndTime().getTime() - System.currentTimeMillis();
-
-        if (timeLeft > 0 && timeLeft < 60000) {
-            int minutesToExtend = 2;
-            boolean success = itemDAO.extendAuctionTime(item.getId(), minutesToExtend);
-
-            if (success) {
-                long newEndTimeMillis = item.getEndTime().getTime() + (minutesToExtend * 60 * 1000);
-                item.setEndTime(new java.sql.Timestamp(newEndTimeMillis));
-
-                logAction("Hệ thống: Phát hiện đấu giá sát nút! Tự động gia hạn thêm " + minutesToExtend + " phút.");
-            }
         }
     }
 

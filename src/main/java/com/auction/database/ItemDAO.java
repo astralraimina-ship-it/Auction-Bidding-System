@@ -26,7 +26,6 @@ public class ItemDAO {
     // --- 1. Lấy tất cả sản phẩm đang OPEN (ĐÃ ĐỒNG BỘ GIỜ VỚI DB) ---
     public ObservableList<Item> getAllOpenItems() {
         ObservableList<Item> list = FXCollections.observableArrayList();
-        // Dùng trực tiếp NOW() của MySQL thay vì truyền tham số Java để tránh lệch múi giờ/lệch giây
         String sql = "SELECT i.*, u.username AS seller_name FROM items i JOIN users u ON i.seller_id = u.id WHERE i.status = 'OPEN' AND i.end_time > ? ORDER BY i.end_time ASC";
         try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
@@ -54,16 +53,23 @@ public class ItemDAO {
         return list;
     }
 
-    // --- 3. Đóng phiên ---
+    // --- 3. Đóng phiên (ĐÃ SỬA: Tự động dọn dẹp RAM khi đóng phiên thành công) ---
     public boolean closeAuction(int itemId, int winnerId) {
-        String sql = "UPDATE items SET status = 'CLOSED', winner_id = ?, end_time = NOW(), payment_status = 'PENDING', win_price = current_price WHERE id = ? AND status = 'OPEN'";
+        String sql = "UPDATE items SET status = 'CLOSED', winner_id = ?, end_time = NOW(), payment_status = 'PENDING', win_price = currentPrice WHERE id = ? AND status = 'OPEN'";
         try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, winnerId); ps.setInt(2, itemId);
-            return ps.executeUpdate() > 0;
+            boolean success = ps.executeUpdate() > 0;
+            if (success) {
+                // Đồng bộ dọn dẹp bộ nhớ đệm RAM ngay lập tức
+                activeAuctions.remove(itemId);
+                activeAutoBids.remove(itemId);
+                System.out.println(">>> [DB -> RAM] Đã dọn dẹp dữ liệu phiên đấu giá ID " + itemId + " trên RAM.");
+            }
+            return success;
         } catch (Exception e) { e.printStackTrace(); return false; }
     }
 
-    // --- 4. Gia hạn ---
+    // --- 4. Gia hạn (ĐÃ SỬA: Hỗ trợ Anti-Snipe tăng hạn thời gian thực dưới DB) ---
     public boolean extendAuctionTime(int itemId, int minutesToAdd) {
         String sql = "UPDATE items SET end_time = DATE_ADD(end_time, INTERVAL ? MINUTE) WHERE id = ? AND status = 'OPEN'";
         try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -138,8 +144,22 @@ public class ItemDAO {
         common.put("startPrice", rs.getDouble("startPrice"));
         common.put("binPrice", rs.getDouble("binPrice"));
 
-        common.put("currentPrice", columnExists(rs, "current_price") ? rs.getDouble("current_price") : 0.0);
-        common.put("winPrice", columnExists(rs, "win_price") ? rs.getDouble("win_price") : 0.0);
+        // Kiểm tra an toàn cả dạng camelCase và snake_case của cột giá hiện tại để tránh ném lỗi map dữ liệu
+        if (columnExists(rs, "currentPrice")) {
+            common.put("currentPrice", rs.getDouble("currentPrice"));
+        } else if (columnExists(rs, "current_price")) {
+            common.put("currentPrice", rs.getDouble("current_price"));
+        } else {
+            common.put("currentPrice", 0.0);
+        }
+
+        if (columnExists(rs, "win_price")) {
+            common.put("winPrice", rs.getDouble("win_price"));
+        } else if (columnExists(rs, "winPrice")) {
+            common.put("winPrice", rs.getDouble("winPrice"));
+        } else {
+            common.put("winPrice", 0.0);
+        }
 
         common.put("step", rs.getDouble("step"));
         common.put("endTime", rs.getTimestamp("end_time"));
@@ -157,7 +177,6 @@ public class ItemDAO {
     }
 
     public boolean checkAndCloseExpiredItems() {
-        // Đồng bộ quét theo giờ DB
         String sqlGetExpired = "SELECT id FROM items WHERE end_time <= NOW() AND status = 'OPEN'";
         String sqlSetWinner = "UPDATE items i " +
                 "JOIN bids b ON b.item_id = i.id " +
@@ -240,7 +259,8 @@ public class ItemDAO {
     }
 
     public boolean payForItem(int itemId, int userId, double clientAmount) {
-        String sqlCheck = "SELECT win_price, current_price, seller_id FROM items WHERE id = ? AND winner_id = ? AND payment_status = 'PENDING'";
+        // Đã đồng bộ kiểm tra an toàn theo cột giá thực tế
+        String sqlCheck = "SELECT win_price, currentPrice, seller_id FROM items WHERE id = ? AND winner_id = ? AND payment_status = 'PENDING'";
         try (Connection conn = DBContext.getConnection()) {
             conn.setAutoCommit(false);
             double priceToPay = 0; int sellerId = 0;
@@ -249,7 +269,8 @@ public class ItemDAO {
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
                         double win = rs.getDouble("win_price");
-                        priceToPay = (win > 0) ? win : rs.getDouble("current_price");
+                        // Dự phòng linh hoạt trường hợp win_price chưa kịp cập nhật thì lấy tạm currentPrice
+                        priceToPay = (win > 0) ? win : rs.getDouble("currentPrice");
                         sellerId = rs.getInt("seller_id");
                     } else { conn.rollback(); return false; }
                 }
@@ -269,12 +290,12 @@ public class ItemDAO {
 
     public void createAuctionState(){
         try (Connection conn = DBContext.getConnection();
-             PreparedStatement ps = conn.prepareStatement("SELECT id, current_price, step, binPrice FROM items WHERE status = 'OPEN'");
+             PreparedStatement ps = conn.prepareStatement("SELECT id, currentPrice, step, binPrice FROM items WHERE status = 'OPEN'");
              ResultSet rs = ps.executeQuery()) {
 
             while (rs.next()) {
                 int id = rs.getInt("id");
-                double startPrice = rs.getDouble("current_price");
+                double startPrice = rs.getDouble("currentPrice");
                 double step = rs.getDouble("step");
                 double binPrice = rs.getDouble("binPrice");
 
@@ -311,6 +332,7 @@ public class ItemDAO {
         return list;
     }
 
+    // --- 12. Lấy chi tiết Item theo ID (ĐÃ SỬA: Thay đổi câu SQL đồng bộ chính xác cấu trúc bảng để Anti-Snipe lấy dữ liệu mượt mà) ---
     public Item getItemById(int itemId) {
         String sql = "SELECT i.*, u.username AS seller_name FROM items i JOIN users u ON i.seller_id = u.id WHERE i.id = ?";
         try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {

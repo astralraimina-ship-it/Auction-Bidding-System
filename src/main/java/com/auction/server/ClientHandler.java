@@ -38,8 +38,6 @@ public class ClientHandler implements Runnable, BidObserver {
         AuctionState state = AuctionServer.activeAuctions.get(itemId);
         if (state == null) {
             try {
-                // CHÚ Ý: Nếu hàm tìm Item theo ID trong file ItemDAO của ông tên là khác
-                // (Ví dụ: findById, hoặc getItem) thì ông đổi tên hàm itemDAO.getItemById này cho đúng nhé!
                 com.auction.common.item.Item item = itemDAO.getItemById(itemId);
 
                 if (item != null) {
@@ -52,6 +50,30 @@ public class ClientHandler implements Runnable, BidObserver {
             }
         }
         return state;
+    }
+
+    /**
+     * 🔥 HÀM BỔ TRỢ XỬ LÝ ANTI-SNIPE (Dùng chung cho cả Bid thủ công và Auto-Bid)
+     */
+    private void checkAndApplyAntiSnipe(int itemId) {
+        try {
+            com.auction.common.item.Item item = itemDAO.getItemById(itemId);
+            if (item != null && item.getEndTime() != null) {
+                long timeLeft = item.getEndTime().getTime() - System.currentTimeMillis();
+                // Nếu thời gian còn lại dưới 1 phút (60,000 mili-giây) và chưa hết giờ
+                if (timeLeft > 0 && timeLeft < 60000) {
+                    int minutesToExtend = 2;
+                    boolean extendSuccess = itemDAO.extendAuctionTime(itemId, minutesToExtend);
+                    if (extendSuccess) {
+                        System.out.println(">>> [ANTI-SNIPE SERVER] Sản phẩm ID " + itemId + " đã được gia hạn thêm " + minutesToExtend + " phút!");
+                        AuctionServer.broadcast("Notify;Hệ thống: Phát hiện đấu giá sát nút! Tự động gia hạn thêm " + minutesToExtend + " phút.");
+                        AuctionServer.broadcast("REFRESH");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.out.println(">>> [ANTI-SNIPE] Lỗi kiểm tra gia hạn thời gian: " + e.getMessage());
+        }
     }
 
     @Override
@@ -87,6 +109,9 @@ public class ClientHandler implements Runnable, BidObserver {
                     synchronized (state){
                         double stepPrice = state.getStepPrice();
 
+                        // Kích hoạt Anti-Snipe cho lượt bấm đặt giá thủ công hiện tại
+                        checkAndApplyAntiSnipe(itemId);
+
                         if (state.isTopBidderAuto()){
                             double maxAutoBudget = state.getTopAutoMaxBudget();
                             int highestBidderId = state.getHighestBidderId();
@@ -108,6 +133,9 @@ public class ClientHandler implements Runnable, BidObserver {
                                 }
                             }
                             else if (bidAmount == maxAutoBudget) {
+                                // Trường hợp Auto-bid tự động nâng lên mức maxBudget đè người dùng thủ công
+                                checkAndApplyAntiSnipe(itemId); // Kích hoạt Anti-Snipe khi Auto-bid tự nâng giá sát giờ
+
                                 state.setCurrentPrice(maxAutoBudget);
                                 bidDAO.placeBid(itemId, highestBidderId, maxAutoBudget);
                                 AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + highestBidderId + ";" + maxAutoBudget);
@@ -116,6 +144,9 @@ public class ClientHandler implements Runnable, BidObserver {
                                 }
                             }
                             else{
+                                // Trường hợp Auto-bid tự động phản đòn nâng giá đè lên người dùng thủ công
+                                checkAndApplyAntiSnipe(itemId); // Kích hoạt Anti-Snipe khi Auto-bid tự nâng giá sát giờ
+
                                 double newPrice = bidAmount + stepPrice;
                                 if (newPrice > maxAutoBudget){
                                     newPrice = maxAutoBudget;
@@ -177,6 +208,9 @@ public class ClientHandler implements Runnable, BidObserver {
 
                         // Kích hoạt dọn dẹp: Tự động hủy và thông báo cho các đối thủ có budget cũ thấp hơn stopPrice mới
                         checkAndDisableLoserAutoBids(itemId, userId, stopPrice);
+
+                        // Kích hoạt Anti-Snipe khi có người thiết lập/kích hoạt Auto-bid đè giá sát nút giờ đóng phiên
+                        checkAndApplyAntiSnipe(itemId);
 
                         if (highestBidderId == userId) {
                             state.setAutoTopBidder(userId, currentPrice, stopPrice);
