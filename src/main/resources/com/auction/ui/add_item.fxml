@@ -95,7 +95,7 @@
         <HBox alignment="CENTER_RIGHT" spacing="15.0">
             <children>
                 <Button fx:id="btnCancel" onAction="#handleCancel" style="-fx-background-color: #95a5a6; -fx-cursor: hand;" text="Hủy bỏ" textFill="WHITE" />
-                <Button onAction="#handleSave" prefWidth="100.0" style="-fx-background-color: #27ae60; -fx-cursor: hand;" text="Lưu &amp; Đăng" textFill="WHITE" />
+                <Button fx:id="btnSave" onAction="#handleSave" prefWidth="100.0" style="-fx-background-color: #27ae60; -fx-cursor: hand;" text="Lưu &amp; Đăng" textFill="WHITE" />
             </children>
             <padding>
                 <Insets top="10.0" />
