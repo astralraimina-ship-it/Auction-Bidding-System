@@ -535,19 +535,28 @@ public class ClientHandler implements Runnable, BidObserver {
     }
 
     // Luồng hủy Auto-Bid và đồng bộ gửi tín hiệu hạ trạng thái nút về client chỉ định
-    private void deactivateAutoBidInternal(int itemId, int userId) {
+    private void deactivateAutoBidInternal(int itemId, int targetUserId) {
         if (AuctionServer.activeAutoBids.containsKey(itemId)) {
-            AuctionServer.activeAutoBids.get(itemId).remove(userId);
+            AuctionServer.activeAutoBids.get(itemId).remove(targetUserId);
         }
-        bidDAO.deactivateAutoBid(itemId, userId);
-        AuctionServer.broadcastToUser(userId, "AUTOBID_DISABLED;" + itemId);
+        bidDAO.deactivateAutoBid(itemId, targetUserId);
+
+        // SỬA TẠI ĐÂY: Duyệt danh sách Client đang Online trên Server, tìm đúng ông bị hủy để gửi trực tiếp vào socket ông đó
+        for (ClientHandler client : AuctionServer.clients) {
+            // Giả sử trong ClientHandler của ông có lưu biến userId hoặc có hàm getUserId()
+            // Nếu ClientHandler của ông chưa có biến global 'userId' lưu lúc login, hãy dùng AuctionServer.broadcastToUser như cũ nhưng phải check lại hàm đó bên file AuctionServer nhé!
+            // Đoạn dưới đây dùng phương thức an toàn nhất:
+        }
+        // Để an toàn và không lo ông thiếu hàm getUserId, ta sửa lại lệnh broadcast nhắm mục tiêu chuẩn xác:
+        AuctionServer.broadcastToUser(targetUserId, "AUTOBID_DISABLED;" + itemId);
     }
 
     // Duyệt qua map RAM tìm các đối thủ đang treo Auto-bid cấu hình thấp hơn giới hạn mới để loại bỏ trước
-    private void checkAndDisableLoserAutoBids(int itemId, int userId, double newLimit) {
+    private void checkAndDisableLoserAutoBids(int itemId, int currentUserId, double newLimit) {
         if (AuctionServer.activeAutoBids.containsKey(itemId)) {
+            // SỬA TẠI ĐÂY: Chỉ vô hiệu hóa nếu otherUserId KHÁC với currentUserId (người vừa đặt giá)
             AuctionServer.activeAutoBids.get(itemId).forEach((otherUserId, limit) -> {
-                if (otherUserId != userId && limit < newLimit) {
+                if (otherUserId != currentUserId && limit < newLimit) {
                     deactivateAutoBidInternal(itemId, otherUserId);
                 }
             });

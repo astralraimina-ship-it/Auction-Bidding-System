@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AuctionServer {
     private static final int PORT = 12345;
     // Dùng Set bình thường vì chúng ta sẽ tự synchronized bằng tay khi duyệt vòng lặp
-    private static final Set<ClientHandler> clients = new HashSet<>();
+    public static final Set<ClientHandler> clients = new HashSet<>();
 
     // ====================================================================
     // THÊM MỚI: CẤU TRÚC LƯU TRỮ VÀ BỘ NHỚ ĐỆM CHO TÍNH NĂNG AUTO-BID
