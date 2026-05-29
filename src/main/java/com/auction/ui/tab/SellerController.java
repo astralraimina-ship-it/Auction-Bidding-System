@@ -50,6 +50,11 @@ public class SellerController implements ClientManager.UpdateListener {
     @FXML
     public void initialize() {
         setupColumns();
+
+        // 🔥 THÊM MỚI: Định dạng chống hiển thị kiểu 1e9 cho cột Giá khởi điểm và Giá mua đứt
+        setupPriceColumnFormat(colStartPrice);
+        setupPriceColumnFormat(colBinPrice);
+
         setupTimeLeftColumn();
         setupPaymentStatusColumn();
         setupImageColumn();
@@ -61,7 +66,6 @@ public class SellerController implements ClientManager.UpdateListener {
         if (signal.equals("REFRESH")){
             refreshAll();
         }
-        // ✂️ ĐÃ XÓA: Khối nhận và giải mã mảng byte ảnh IMAGE_RESPONSE từ Socket cồng kềnh cũ đã loại bỏ hoàn toàn!
     }
 
     private void setupColumns() {
@@ -70,6 +74,26 @@ public class SellerController implements ClientManager.UpdateListener {
         if (colDetails != null) colDetails.setCellValueFactory(new PropertyValueFactory<>("description"));
         if (colStartPrice != null) colStartPrice.setCellValueFactory(new PropertyValueFactory<>("startPrice"));
         if (colBinPrice != null) colBinPrice.setCellValueFactory(new PropertyValueFactory<>("binPrice"));
+    }
+
+    /**
+     * 🔥 THÊM MỚI: Hàm format định dạng số tiền cho cột TableView chống lỗi hiển thị 1e9
+     */
+    private void setupPriceColumnFormat(TableColumn<Item, Double> column) {
+        if (column != null) {
+            column.setCellFactory(col -> new TableCell<Item, Double>() {
+                @Override
+                protected void updateItem(Double price, boolean empty) {
+                    super.updateItem(price, empty);
+                    if (empty || price == null) {
+                        setText(null);
+                    } else {
+                        // Định dạng có dấu phân cách hàng nghìn và thêm chữ VNĐ (Ví dụ: 1,000,000,000 VNĐ)
+                        setText(String.format("%,.0f VNĐ", price));
+                    }
+                }
+            });
+        }
     }
 
     /**

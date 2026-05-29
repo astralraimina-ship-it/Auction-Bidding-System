@@ -27,10 +27,15 @@ public class ItemDAO {
     public ObservableList<Item> getAllOpenItems() {
         ObservableList<Item> list = FXCollections.observableArrayList();
         // Dùng trực tiếp NOW() của MySQL thay vì truyền tham số Java để tránh lệch múi giờ/lệch giây
-        String sql = "SELECT i.*, u.username AS seller_name FROM items i JOIN users u ON i.seller_id = u.id WHERE i.status = 'OPEN' AND i.end_time > NOW() ORDER BY i.end_time ASC";
-        try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                list.add(mapResultSetToItem(rs));
+        String sql = "SELECT i.*, u.username AS seller_name FROM items i JOIN users u ON i.seller_id = u.id WHERE i.status = 'OPEN' AND i.end_time > ? ORDER BY i.end_time ASC";
+        try (Connection conn = DBContext.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+            try (ResultSet rs = ps.executeQuery()){
+                while (rs.next()) {
+                    list.add(mapResultSetToItem(rs));
+                }
+            } catch (Exception e){
+                e.printStackTrace();
             }
         } catch (Exception e) {
             e.printStackTrace();
