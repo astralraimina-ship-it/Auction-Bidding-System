@@ -141,6 +141,14 @@ public class AuctionServer {
         }
     }
 
+    /**
+     * 🔥 THÊM MỚI TƯƠNG ỨNG: Gửi tin nhắn định danh đến một User cụ thể.
+     * Gói tin được đính kèm userId đích ở cuối để phía Client nhận diện và lọc UI tự động.
+     */
+    public static void broadcastToUser(int userId, String msg){
+        broadcast(msg + ";" + userId);
+    }
+
     public static void removeClient(ClientHandler client){
         synchronized (clients) {
             clients.remove(client);

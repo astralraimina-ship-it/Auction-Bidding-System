@@ -97,6 +97,7 @@ public class ClientHandler implements Runnable, BidObserver {
                                 }
 
                                 bidDAO.deactivateAutoBid(itemId, highestBidderId);
+                                AuctionServer.broadcastToUser(highestBidderId, "AUTOBID_DISABLED;" + itemId);
 
                                 this.sendMessage("AUTOBID_STATUS;INACTIVE;" + userId);
                                 bidDAO.placeBid(itemId, userId, bidAmount);
@@ -158,6 +159,12 @@ public class ClientHandler implements Runnable, BidObserver {
                     }
 
                     synchronized (state) {
+                        // CHẶN CỨNG: Không cho phép cài Auto-bid cao hơn giá Mua đứt (Bin Price)
+                        if (stopPrice > state.getBinPrice()) {
+                            System.out.println(">>> [SERVER] Auto-Bid quá giá Bin, tự động hạ stopPrice xuống bằng Bin Price: " + state.getBinPrice());
+                            stopPrice = state.getBinPrice();
+                        }
+
                         double stepPrice = state.getStepPrice();
                         double currentPrice = state.getCurrentPrice();
                         int highestBidderId = state.getHighestBidderId();
@@ -167,6 +174,9 @@ public class ClientHandler implements Runnable, BidObserver {
                             this.sendMessage("ERROR;Ngưỡng dừng Auto-Bid (" + stopPrice + ") phải lớn hơn giá hiện tại (" + currentPrice + ")!");
                             continue;
                         }
+
+                        // Kích hoạt dọn dẹp: Tự động hủy và thông báo cho các đối thủ có budget cũ thấp hơn stopPrice mới
+                        checkAndDisableLoserAutoBids(itemId, userId, stopPrice);
 
                         if (highestBidderId == userId) {
                             state.setAutoTopBidder(userId, currentPrice, stopPrice);
@@ -198,10 +208,12 @@ public class ClientHandler implements Runnable, BidObserver {
                                 if (AuctionServer.activeAutoBids.get(itemId) != null) {
                                     AuctionServer.activeAutoBids.get(itemId).remove(highestBidderId);
                                 }
+                                bidDAO.deactivateAutoBid(itemId, highestBidderId);
+                                AuctionServer.broadcastToUser(highestBidderId, "AUTOBID_DISABLED;" + itemId);
+
                                 AuctionServer.activeAutoBids.computeIfAbsent(itemId, k -> new ConcurrentHashMap<>()).put(userId, stopPrice);
 
                                 bidDAO.saveOrUpdateAutoBid(itemId, userId, stopPrice);
-                                bidDAO.deactivateAutoBid(itemId, highestBidderId);
 
                                 this.sendMessage("AUTOBID_STATUS;ACTIVE;" + userId + ";" + stopPrice);
 
@@ -267,6 +279,7 @@ public class ClientHandler implements Runnable, BidObserver {
                     }
 
                     bidDAO.deactivateAutoBid(itemId, userId);
+                    AuctionServer.broadcastToUser(userId, "AUTOBID_DISABLED;" + itemId);
 
                     this.sendMessage("AUTOBID_STATUS;INACTIVE;" + userId);
                     System.out.println("User " + userId + " đã TẮT Auto-Bid của sản phẩm " + itemId);
@@ -450,6 +463,26 @@ public class ClientHandler implements Runnable, BidObserver {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+        }
+    }
+
+    // Luồng hủy Auto-Bid và đồng bộ gửi tín hiệu hạ trạng thái nút về client chỉ định
+    private void deactivateAutoBidInternal(int itemId, int userId) {
+        if (AuctionServer.activeAutoBids.containsKey(itemId)) {
+            AuctionServer.activeAutoBids.get(itemId).remove(userId);
+        }
+        bidDAO.deactivateAutoBid(itemId, userId);
+        AuctionServer.broadcastToUser(userId, "AUTOBID_DISABLED;" + itemId);
+    }
+
+    // Duyệt qua map RAM tìm các đối thủ đang treo Auto-bid cấu hình thấp hơn giới hạn mới để loại bỏ trước
+    private void checkAndDisableLoserAutoBids(int itemId, int userId, double newLimit) {
+        if (AuctionServer.activeAutoBids.containsKey(itemId)) {
+            AuctionServer.activeAutoBids.get(itemId).forEach((otherUserId, limit) -> {
+                if (otherUserId != userId && limit < newLimit) {
+                    deactivateAutoBidInternal(itemId, otherUserId);
+                }
+            });
         }
     }
 

@@ -250,6 +250,25 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
 
                 manualRefresh();
             }
+            // ================================================================
+            // 🔥 THÊM MỚI: XỬ LÝ LỆNH BỊ HỦY AUTO-BID ĐỊNH DANH TỪ SERVER
+            // ================================================================
+            else if (signal.startsWith("AUTOBID_DISABLED;")) {
+                String[] parts = signal.split(";");
+                int disabledItemId = Integer.parseInt(parts[1]);
+                int targetUserId = Integer.parseInt(parts[2]);
+
+                // Đúng ID của mình và đúng sản phẩm tại phòng này mới thực thi ngắt giao diện
+                if (currentUserId == targetUserId && currentItem != null && currentItem.getId() == disabledItemId) {
+                    txtBidInput.setDisable(false);
+                    btnPlaceBid.setDisable(false);
+                    txtStopPrice.setDisable(false);
+                    btnAutoBidSetup.setDisable(false);
+                    btnStopAutoBid.setDisable(true);
+
+                    logAction("Hệ thống: Chế độ Auto-Bid của bạn đã tự động ngắt (Do có người đặt giá áp đảo vượt hạn mức cấu hình)!");
+                }
+            }
             else if (signal.startsWith("AUTOBID_STATUS")) {
                 String[] part = signal.split(";");
                 String status = part[1];
