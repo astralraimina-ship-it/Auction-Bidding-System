@@ -1,5 +1,6 @@
 package com.auction.server;
 
+import com.auction.common.user.User;
 import com.auction.database.BidDAO;
 import com.auction.database.ItemDAO;
 import com.auction.database.UserDAO;
@@ -25,6 +26,7 @@ public class ClientHandler implements Runnable, BidObserver {
     private UserDAO userDAO = new UserDAO();
     private ItemDAO itemDAO = new ItemDAO();
     private BidDAO bidDAO = new BidDAO();
+    private int userId;
 
     ClientHandler(Socket _socket) {
         socket = _socket;
@@ -486,6 +488,30 @@ public class ClientHandler implements Runnable, BidObserver {
                 // ================================================================
                 // 9. CÁC LỆNH KHÁC
                 // ================================================================
+                else if (request.startsWith("LOGIN")) {
+                    String[] parts = request.split(";");
+                    String username = parts[1];
+                    String password = parts[2];
+
+                    // 1. Dùng UserDAO để check Database TẠI SERVER
+                    User user = userDAO.authenticate(username, password);
+
+                    if (user != null) {
+                        // 2. TÀI KHOẢN ĐÚNG -> Check xem có ai đang dùng không
+                        if (AuctionServer.newClients.containsKey(user.getId())) {
+                            sendMessage("LOGIN_FAILED;Tài khoản này đang được đăng nhập ở thiết bị khác!");
+                        } else {
+                            userId = user.getId();
+                            // 3. HỢP LỆ -> Lưu vào Map và báo thành công
+                            AuctionServer.newClients.put(userId, this);
+
+                            // Gửi dữ liệu về Client (gửi kèm id, tên, role để Client mở giao diện)
+                            sendMessage("LOGIN_SUCCESS;" + user.getId() + ";" + user.getUsername() + ";" + user.getRole());
+                        }
+                    } else {
+                        sendMessage("LOGIN_FAILED;Sai tài khoản hoặc mật khẩu!");
+                    }
+                }
                 else if (request.startsWith("PAY")) {
                     String[] part = request.split(";");
                     int itemId = Integer.parseInt(part[1]);
@@ -516,6 +542,9 @@ public class ClientHandler implements Runnable, BidObserver {
                 else if (request.equals("NEW_USER") || request.equals("TRANSACTION_UPDATED") || request.equals("UPDATE")){
                     BidPublisher.getInstance().notifyObservers();
                 }
+                else if (request.equals("LOGOUT")){
+                    AuctionServer.newClients.remove(userId);
+                }
             }
         } catch (IOException e) {
             System.out.println("Client mất kết nối");
@@ -524,6 +553,7 @@ public class ClientHandler implements Runnable, BidObserver {
             try {
                 BidPublisher.getInstance().removeObserver(this);
                 AuctionServer.removeClient(this);
+                AuctionServer.newClients.remove(userId);
                 if (in != null) in.close();
                 if (out != null) out.close();
                 if (socket != null && !socket.isClosed()) socket.close();

@@ -515,6 +515,7 @@ public class BidderController implements ClientManager.UpdateListener {
         if (lblBalance != null && lblBalance.getScene() != null) {
             instance = null;
             ClientManager.getInstance().removeUpdateListener(this);
+            ClientManager.getInstance().sendCommand("LOGOUT");
             Stage stage = (Stage) lblBalance.getScene().getWindow();
             NavigationService.navigate(stage, "/com/auction/ui/login.fxml", "UET Auction - Đăng nhập");
         }

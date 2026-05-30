@@ -10,6 +10,7 @@ public class AuctionServer {
     private static final int PORT = 12345;
     // Dùng Set bình thường vì chúng ta sẽ tự synchronized bằng tay khi duyệt vòng lặp
     public static final Set<ClientHandler> clients = new HashSet<>();
+    public static final ConcurrentHashMap<Integer, ClientHandler> newClients = new ConcurrentHashMap<>();
 
     // ====================================================================
     // THÊM MỚI: CẤU TRÚC LƯU TRỮ VÀ BỘ NHỚ ĐỆM CHO TÍNH NĂNG AUTO-BID

@@ -21,7 +21,7 @@ public class Art extends Item {
 
     @Override
     public String getItemDetails() {
-        return String.format("Họa sĩ: %s | Chất liệu: %s | Tình trạng: %s", artist, medium, state);
+        return String.format(" | Họa sĩ: %s | Chất liệu: %s | Tình trạng: %s", artist, medium, state);
     }
 
     public String getArtist() { return artist; }

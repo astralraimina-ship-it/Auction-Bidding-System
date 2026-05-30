@@ -28,7 +28,7 @@ public class Vehicle extends Item {
 
     @Override
     public String getItemDetails() {
-        return String.format("Hãng: %s | Đời: %d | Tình trạng: %s | ODO: %,.1f km", brand, modelYear, state, mileage);
+        return String.format(" | Hãng: %s | Đời: %d | Tình trạng: %s | ODO: %,.1f km", brand, modelYear, state, mileage);
     }
 
     public String getEngineType() { return engineType; }

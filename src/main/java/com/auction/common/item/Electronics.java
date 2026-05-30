@@ -22,7 +22,7 @@ public class Electronics extends Item {
 
     @Override
     public String getItemDetails() {
-        return String.format("Hãng: %s | Bảo hành: %s | Tình trạng: %s", brand, warranty, state);
+        return String.format(" | Hãng: %s | Bảo hành: %s | Tình trạng: %s", brand, warranty, state);
     }
 
     public String getBrand() { return brand; }

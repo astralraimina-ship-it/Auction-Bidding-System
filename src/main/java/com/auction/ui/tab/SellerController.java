@@ -262,6 +262,7 @@ public class SellerController implements ClientManager.UpdateListener {
     @FXML
     private void handleLogout() {
         if (tableItems != null && tableItems.getScene() != null) {
+            ClientManager.getInstance().sendCommand("LOGOUT");
             ClientManager.getInstance().removeUpdateListener(this);
             Stage stage = (Stage) tableItems.getScene().getWindow();
             NavigationService.navigate(stage, "/com/auction/ui/login.fxml", "UET Auction - Đăng nhập");

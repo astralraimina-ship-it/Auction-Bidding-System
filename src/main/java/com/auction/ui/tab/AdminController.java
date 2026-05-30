@@ -235,6 +235,7 @@ public class AdminController implements ClientManager.UpdateListener {
     }
 
     @FXML private void handleLogout() {
+        ClientManager.getInstance().sendCommand("LOGOUT");
         ClientManager.getInstance().removeUpdateListener(this);
         Stage stage = (Stage) tableUsers.getScene().getWindow();
         NavigationService.navigate(stage, "/com/auction/ui/login.fxml", "UET Auction - Đăng nhập");
