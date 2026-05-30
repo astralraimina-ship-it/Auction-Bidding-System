@@ -38,9 +38,6 @@
             </VBox>
 
             <HBox spacing="10" alignment="CENTER_RIGHT">
-                <Button text="Nạp tiền" onAction="#handleOpenDeposit"
-                        style="-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5; -fx-cursor: hand;"
-                        prefWidth="100" />
                 <Button text="Rút tiền" onAction="#handleOpenWithdraw"
                         style="-fx-background-color: #e67e22; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5; -fx-cursor: hand;"
                         prefWidth="100" />
