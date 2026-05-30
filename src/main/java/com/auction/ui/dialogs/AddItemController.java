@@ -176,9 +176,6 @@ public class AddItemController {
         double stepPrice = Double.parseDouble(stepStr);
         double binPrice = binPriceStr.isEmpty() ? 0.0 : Double.parseDouble(binPriceStr);
         double mileage = 0.0;
-        System.out.println(startPrice);
-        System.out.println(stepPrice);
-        System.out.println(binPrice);
 
         if ("VEHICLE".equals(category) && !mileageStr.isEmpty()) {
             if (!isNumeric(mileageStr)) {

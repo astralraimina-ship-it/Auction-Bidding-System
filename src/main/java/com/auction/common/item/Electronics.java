@@ -16,6 +16,8 @@ public class Electronics extends Item {
         this.brand = brand;
         this.warranty = warranty;
         this.state = state;
+        String oldDescription = this.getDescription();
+        this.setDescription(oldDescription + this.getItemDetails());
     }
 
     @Override

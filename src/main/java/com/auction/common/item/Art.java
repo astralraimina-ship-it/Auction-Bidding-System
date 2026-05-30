@@ -15,6 +15,8 @@ public class Art extends Item {
         this.artist = artist;
         this.medium = medium;
         this.state = state;
+        String oldDescription = this.getDescription();
+        this.setDescription(oldDescription + this.getItemDetails());
     }
 
     @Override

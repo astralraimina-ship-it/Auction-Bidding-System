@@ -22,6 +22,8 @@ public class Vehicle extends Item {
         this.state = state;
         this.age = age;
         this.mileage = mileage;
+        String oldDescription = this.getDescription();
+        this.setDescription(oldDescription + this.getItemDetails());
     }
 
     @Override

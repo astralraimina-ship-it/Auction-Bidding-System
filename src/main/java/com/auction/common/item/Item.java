@@ -53,6 +53,7 @@ public abstract class Item implements Serializable {
     public void setId(int newId) { this.id = newId;}
     public String getName() { return name; }
     public String getDescription() { return description; }
+    public void setDescription(String newDescription){this.description = newDescription;}
     public double getStartPrice() { return startPrice; }
     public double getBinPrice() { return binPrice; }
 
