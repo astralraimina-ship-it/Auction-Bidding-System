@@ -122,9 +122,8 @@ public class ClientHandler implements Runnable, BidObserver {
                                 }
 
                                 bidDAO.deactivateAutoBid(itemId, highestBidderId);
-                                AuctionServer.broadcastToUser(highestBidderId, "AUTOBID_DISABLED;" + itemId);
 
-                                this.sendMessage("AUTOBID_STATUS;INACTIVE;" + userId);
+                                AuctionServer.broadcast("AUTOBID_STATUS;INACTIVE;" + highestBidderId);
                                 bidDAO.placeBid(itemId, userId, bidAmount);
                                 AuctionServer.broadcast("BID_UPDATE;" + itemId + ";" + userId + ";" + bidAmount);
 
@@ -243,7 +242,7 @@ public class ClientHandler implements Runnable, BidObserver {
                                     AuctionServer.activeAutoBids.get(itemId).remove(highestBidderId);
                                 }
                                 bidDAO.deactivateAutoBid(itemId, highestBidderId);
-                                AuctionServer.broadcastToUser(highestBidderId, "AUTOBID_DISABLED;" + itemId);
+                                AuctionServer.broadcast("AUTOBID_STATUS;INACTIVE;" + highestBidderId);
 
                                 AuctionServer.activeAutoBids.computeIfAbsent(itemId, k -> new ConcurrentHashMap<>()).put(userId, stopPrice);
 
