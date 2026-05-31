@@ -15,6 +15,7 @@ Dự án sử dụng các công nghệ và thư viện tiêu chuẩn bao gồm:
 * Kết nối mạng liên máy: Radmin VPN (Tạo mạng LAN ảo)
 * Kiểm thử phần mềm: JUnit 5 (Unit Testing)
 * Tự động hóa tích hợp: GitHub Actions (CI/CD Workflow)
+* JavaSockets
 
 ---
 
