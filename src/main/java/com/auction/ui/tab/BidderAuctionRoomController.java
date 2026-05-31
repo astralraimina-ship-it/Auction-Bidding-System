@@ -171,20 +171,9 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
      */
     private void loadDefaultImage() {
         if (itemImageView == null) return;
-        try {
-            // Thử tìm tại thư mục gốc src/main/resources/images/default.png
-            Image defaultImg = new Image(getClass().getResourceAsStream("/images/default.png"));
-            itemImageView.setImage(defaultImg);
-        } catch (Exception e) {
-            try {
-                // Fallback: Thử tìm tại thư mục theo cấu trúc package com/auction/ui/images/default.png
-                Image defaultImg = new Image(getClass().getResourceAsStream("/com/auction/ui/images/default.png"));
-                itemImageView.setImage(defaultImg);
-            } catch (Exception ex) {
-                System.out.println("Lỗi: Không tìm thấy file default.png ở cả 2 đường dẫn tài nguyên. Khung ảnh sẽ để trống.");
-                itemImageView.setImage(null);
-            }
-        }
+        String cloudinaryDefaultUrl = "https://res.cloudinary.com/dvoz4wgqh/image/upload/v1780221705/1980d3ba-abb2-446e-8c82-f31d40964463_efw1kq.jpg";
+        Image defaultImg = new Image(cloudinaryDefaultUrl, true);
+        itemImageView.setImage(defaultImg);
     }
 
     /**

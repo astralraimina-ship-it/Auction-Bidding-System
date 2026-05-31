@@ -106,16 +106,8 @@ public class BidderController implements ClientManager.UpdateListener {
      * Hàm nạp ảnh mặc định an toàn từ resources
      */
     private Image getDefaultImage() {
-        try {
-            return new Image(getClass().getResourceAsStream("/images/default.png"));
-        } catch (Exception e) {
-            try {
-                return new Image(getClass().getResourceAsStream("/com/auction/ui/images/default.png"));
-            } catch (Exception ex) {
-                System.out.println("Lỗi: Không tìm thấy file default.png ở cả 2 đường dẫn tài nguyên.");
-                return null;
-            }
-        }
+        String cloudinaryDefaultUrl = "https://res.cloudinary.com/dvoz4wgqh/image/upload/v1780221705/1980d3ba-abb2-446e-8c82-f31d40964463_efw1kq.jpg";
+        return new Image(cloudinaryDefaultUrl, true);
     }
 
     private void setupImageColumn(TableColumn<Item, String> column) {
