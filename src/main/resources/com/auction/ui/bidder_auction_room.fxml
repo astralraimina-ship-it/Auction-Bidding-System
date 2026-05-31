@@ -3,6 +3,7 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.text.*?>
 <?import javafx.scene.image.ImageView?>
+<?import javafx.scene.chart.*?>
 
 <AnchorPane prefHeight="650.0" prefWidth="900.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.auction.ui.tab.BidderAuctionRoomController">
     <children>
@@ -16,7 +17,6 @@
                     <children>
                         <VBox prefWidth="420.0" spacing="12.0" style="-fx-background-color: white; -fx-padding: 15; -fx-background-radius: 10; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 0);">
                             <children>
-
                                 <StackPane prefHeight="180.0" style="-fx-background-color: #f9f9f9; -fx-background-radius: 8; -fx-border-color: #e0e0e0; -fx-border-radius: 8;">
                                     <children>
                                         <ImageView fx:id="itemImageView" fitHeight="170.0" fitWidth="380.0" pickOnBounds="true" preserveRatio="true" />
@@ -73,12 +73,25 @@
                             </children>
                         </VBox>
 
-                        <VBox HBox.hgrow="ALWAYS" spacing="10.0">
+                        <VBox HBox.hgrow="ALWAYS" spacing="15.0">
                             <children>
-                                <Label text="Nhật ký phòng đấu giá:">
-                                    <font><Font name="System Italic" size="13.0" /></font>
-                                </Label>
-                                <TextArea fx:id="txtAreaLog" editable="false" style="-fx-font-family: 'Consolas'; -fx-font-size: 12px;" VBox.vgrow="ALWAYS" />
+                                <LineChart fx:id="priceLineChart" title="Biến động giá thời gian thực" prefHeight="280.0" style="-fx-background-color: white; -fx-background-radius: 10; -fx-padding: 5; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.05), 10, 0, 0, 0);">
+                                    <xAxis>
+                                        <CategoryAxis fx:id="xAxis" label="Thời gian / Lượt đấu" />
+                                    </xAxis>
+                                    <yAxis>
+                                        <NumberAxis fx:id="yAxis" label="Mức giá (VNĐ)" />
+                                    </yAxis>
+                                </LineChart>
+
+                                <VBox spacing="8.0" VBox.vgrow="ALWAYS">
+                                    <children>
+                                        <Label text="Nhật ký phòng đấu giá:">
+                                            <font><Font name="System Italic" size="13.0" /></font>
+                                        </Label>
+                                        <TextArea fx:id="txtAreaLog" editable="false" style="-fx-font-family: 'Consolas'; -fx-font-size: 12px;" VBox.vgrow="ALWAYS" />
+                                    </children>
+                                </VBox>
                             </children>
                         </VBox>
                     </children>

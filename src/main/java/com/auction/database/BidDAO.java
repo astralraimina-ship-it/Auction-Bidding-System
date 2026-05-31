@@ -1,9 +1,46 @@
 package com.auction.database;
+
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
 public class BidDAO {
+
+    // 🔥 THÊM MỚI: Class chứa dữ liệu điểm tọa độ để truyền cho Biểu đồ (LineChart)
+    public static class BidHistoryPoint {
+        public double price;
+        public String timeLabel; // Định dạng "HH:mm:ss" làm trục X
+
+        public BidHistoryPoint(double price, String timeLabel) {
+            this.price = price;
+            this.timeLabel = timeLabel;
+        }
+    }
+
+    // 🔥 THÊM MỚI: Hàm lấy lịch sử vẽ biểu đồ không làm reset đồ thị khi out phòng
+    public List<BidHistoryPoint> getBidHistoryOfItem(int itemId) {
+        List<BidHistoryPoint> history = new ArrayList<>();
+        String sql = "SELECT bid_amount, bid_time FROM bids WHERE item_id = ? ORDER BY bid_time ASC";
+
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, itemId);
+            try (ResultSet rs = ps.executeQuery()) {
+                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("HH:mm:ss");
+                while (rs.next()) {
+                    double price = rs.getDouble("bid_amount");
+                    Timestamp time = rs.getTimestamp("bid_time");
+                    String timeLabel = (time != null) ? sdf.format(time) : "00:00:00";
+
+                    history.add(new BidHistoryPoint(price, timeLabel));
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return history;
+    }
 
     /**
      * SỬA: Thực hiện Transaction để đảm bảo tính nhất quán (Insert lịch sử và Update giá cùng lúc)

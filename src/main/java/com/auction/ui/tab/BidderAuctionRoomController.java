@@ -9,8 +9,14 @@ import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.chart.LineChart;
+import javafx.scene.chart.CategoryAxis;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.XYChart;
 
 import java.io.ByteArrayInputStream;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
@@ -28,6 +34,14 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
     // Khung hiển thị ảnh sản phẩm
     @FXML private ImageView itemImageView;
 
+    // Khai báo các thành phần điều khiển LineChart
+    @FXML private LineChart<String, Number> priceLineChart;
+    @FXML private CategoryAxis xAxis;
+    @FXML private NumberAxis yAxis;
+
+    private XYChart.Series<String, Number> priceSeries;
+    private final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
+
     private Item currentItem;
     private final BidDAO bidDAO = new BidDAO();
     private final ItemDAO itemDAO = new ItemDAO();
@@ -35,12 +49,30 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
 
     private int currentUserId;
 
+    // Phương thức khởi tạo cấu trúc dữ liệu cho biểu đồ
+    @FXML
+    public void initialize() {
+        if (priceLineChart != null) {
+            priceSeries = new XYChart.Series<>();
+            priceSeries.setName("Mức giá hiện tại");
+            priceLineChart.getData().add(priceSeries);
+            priceLineChart.setAnimated(false);
+            // Tắt hiệu ứng chuyển động mặc định để chống lag UI
+            priceLineChart.setCreateSymbols(false);
+        }
+    }
+
     /**
      * Nhận dữ liệu Item và hiển thị lên UI
      */
     public void initData(Item item) {
         if (item == null) return;
         this.currentItem = item;
+
+        // 🔥 FIX 1: Xóa sạch dữ liệu điểm vẽ cũ của sản phẩm trước khi đổi phòng đấu giá mới
+        if (priceSeries != null) {
+            priceSeries.getData().clear();
+        }
 
         lblProductName.setText(item.getName());
         lblStep.setText("Bước giá tối thiểu: " + String.format("%,.0f", item.getStep()) + " VNĐ");
@@ -78,11 +110,60 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
             }
         }
 
-        manualRefresh();
+        // Tải lịch sử văn bản nhật ký trước
         loadHistoryFromDatabase();
+
+        // Hiển thị text giá hiện tại lên Label trước
+        if (lblCurrentPrice != null) {
+            double max = bidDAO.getCurrentMaxBid(item.getId(), item.getStartPrice());
+            lblCurrentPrice.setText("GIÁ HIỆN TẠI: " + String.format("%,.0f", max) + " VNĐ");
+        }
+
+        // 🔥 SỬA CHÍNH: Tạo luồng riêng tải toàn bộ lịch sử điểm vẽ đồ thị từ Database lên
+        new Thread(() -> {
+            List<BidDAO.BidHistoryPoint> historyPoints = bidDAO.getBidHistoryOfItem(item.getId());
+
+            Platform.runLater(() -> {
+                if (priceSeries != null) {
+                    if (historyPoints.isEmpty()) {
+                        // Nếu chưa có ai đặt giá bao giờ, vẽ 1 điểm làm mốc ban đầu (Giá khởi điểm)
+                        String currentTime = LocalTime.now().format(timeFormatter);
+                        priceSeries.getData().add(new XYChart.Data<>(currentTime, item.getStartPrice()));
+                    } else {
+                        // Nếu ĐÃ CÓ lịch sử, dùng vòng lặp vẽ lại toàn bộ các điểm cũ theo đúng thứ tự thời gian
+                        for (BidDAO.BidHistoryPoint point : historyPoints) {
+                            priceSeries.getData().add(new XYChart.Data<>(point.timeLabel, point.price));
+                        }
+                    }
+
+                    // Giới hạn hiển thị 15 điểm mốc gần nhất để tránh quá dày sinh lag đồ thị
+                    if (priceSeries.getData().size() > 15) {
+                        int totalSize = priceSeries.getData().size();
+                        priceSeries.getData().remove(0, totalSize - 15);
+                    }
+                }
+            });
+        }).start();
 
         ClientManager.getInstance().sendCommand("CHECK_AUTOBID_STATUS;" + item.getId() + ";" + currentUserId);
         ClientManager.getInstance().addUpdateListener(this);
+    }
+
+    /**
+     * Hàm hỗ trợ cập nhật dữ liệu lên LineChart một cách Thread-safe
+     */
+    private void updateChartRealtime(double newPrice) {
+        Platform.runLater(() -> {
+            if (priceSeries != null) {
+                String currentTime = LocalTime.now().format(timeFormatter);
+                priceSeries.getData().add(new XYChart.Data<>(currentTime, newPrice));
+
+                // Giới hạn hiển thị 15 điểm mốc gần nhất để biểu đồ tự cuốn ngang, tránh quá dày sinh lag
+                if (priceSeries.getData().size() > 15) {
+                    priceSeries.getData().remove(0);
+                }
+            }
+        });
     }
 
     /**
@@ -248,7 +329,7 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
                 manualRefresh();
             }
             // ================================================================
-            // 🔥 THÊM MỚI: XỬ LÝ LỆNH BỊ HỦY AUTO-BID ĐỊNH DANH TỪ SERVER
+            // XỬ LÝ LỆNH BỊ HỦY AUTO-BID ĐỊNH DANH TỪ SERVER
             // ================================================================
             else if (signal.startsWith("AUTOBID_DISABLED;")) {
                 String[] parts = signal.split(";");
@@ -321,6 +402,9 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
                     txtAreaLog.appendText(newLog + "\n");
                     loadHistoryFromDatabase();
                     manualRefresh();
+
+                    // Đẩy mức giá mới nhận được từ phòng Socket lên đồ thị LineChart
+                    updateChartRealtime(amount);
                 }
             }
             else if (signal.startsWith("Error;")) {
@@ -352,7 +436,7 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
                 return;
             }
 
-            // 🔥 LỚP BẢO VỆ DÒNG 325: Kiểm tra nếu endTime bị null thì không gọi .getTime() để tránh sập app
+            // Kiểm tra nếu endTime bị null thì không gọi .getTime() để tránh sập app
             if (currentItem.getEndTime() == null) {
                 showError("Rất tiếc! Phiên đấu giá này không tồn tại hoặc đã kết thúc trên hệ thống.");
                 txtBidInput.setDisable(true);
@@ -407,6 +491,8 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
             if (lblCurrentPrice != null) {
                 lblCurrentPrice.setText("GIÁ HIỆN TẠI: " + String.format("%,.0f", max) + " VNĐ");
             }
+            // 🔥 FIX 2: Đồng bộ vẽ luôn điểm giá mới nhất này lên đồ thị khi bấm làm mới thủ công
+            updateChartRealtime(max);
         });
     }
 
