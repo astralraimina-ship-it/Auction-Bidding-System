@@ -151,13 +151,13 @@ public class SellerController implements ClientManager.UpdateListener {
                 @Override
                 protected void updateItem(Timestamp endTime, boolean empty) {
                     super.updateItem(endTime, empty);
-                    if (empty || endTime == null) {
+                    if (empty || endTime == null || getTableRow() == null || getTableRow().getItem() == null ) {
                         setText(null); setStyle("");
                     } else {
                         Item currentItem = getTableRow().getItem();
                         LocalDateTime now = LocalDateTime.now();
                         LocalDateTime end = endTime.toLocalDateTime();
-                        if (now.isAfter(end) || currentItem.getStatus().equalsIgnoreCase("CANCEL")) {
+                        if (now.isAfter(end) || "CANCEL".equals(currentItem.getStatus())) {
                             setText("Đã kết thúc"); setStyle("-fx-text-fill: #e74c3c; -fx-font-weight: bold;");
                         } else {
                             Duration d = Duration.between(now, end);

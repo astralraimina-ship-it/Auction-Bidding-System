@@ -133,7 +133,7 @@ public class AdminController implements ClientManager.UpdateListener {
                     } else {
                         Item currentItem = getTableRow().getItem();
                         long diff = currentItem.getEndTime().getTime() - System.currentTimeMillis();
-                        if (diff <= 0 || "CLOSED".equals(currentItem.getStatus()) || "CANCEL".equalsIgnoreCase(currentItem.getStatus())) {
+                        if (diff <= 0 || "CLOSED".equals(currentItem.getStatus()) || "CANCEL".equals(currentItem.getStatus())) {
                             setText("Đã kết thúc");
                             setStyle("-fx-text-fill: #e74c3c; -fx-font-weight: bold;");
                         } else {
@@ -236,7 +236,10 @@ public class AdminController implements ClientManager.UpdateListener {
     }
 
     @FXML private void handleRejectTrans() {
-        ClientManager.getInstance().sendCommand("TRANSACTION_UPDATED");
+        Transaction s = tableTransactions.getSelectionModel().getSelectedItem();
+        if (s != null && adminDAO.rejectTransaction(s)) {
+            ClientManager.getInstance().sendCommand("TRANSACTION_UPDATED");
+        }
     }
 
     @FXML private void handleLogout() {

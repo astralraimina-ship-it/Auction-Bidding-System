@@ -67,11 +67,11 @@ public class AdminDAO extends UserDAO {
         }
     }
 
-    public boolean rejectTransaction(int transactionId) {
+    public boolean rejectTransaction(Transaction t) {
         String sql = "UPDATE transactions SET status = 'REJECTED' WHERE id = ?";
         try (Connection conn = DBContext.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, transactionId);
+            ps.setInt(1, t.getId());
             return ps.executeUpdate() > 0;
         } catch (Exception e) {
             return false;
