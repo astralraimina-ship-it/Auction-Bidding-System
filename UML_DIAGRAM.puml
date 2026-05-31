@@ -1,0 +1,286 @@
+@startuml Auction_Bidding_System_UML
+
+!define ABSTRACT_COLOR #FFE5CC
+!define INTERFACE_COLOR #CCE5FF
+!define ENTITY_COLOR #E5CCFF
+!define DAO_COLOR #CCFFCC
+!define SERVER_COLOR #FFCCCC
+
+skinparam backgroundColor #FEFEFE
+skinparam ArrowColor #333333
+skinparam ClassBackgroundColor ABSTRACT_COLOR
+skinparam ClassBorderColor #333333
+
+' ==================== USER HIERARCHY ====================
+interface Payable #INTERFACE_COLOR {
+    +deposit(amount: double): void
+    +withdraw(amount: double): boolean
+    +getBalance(): double
+    +transferTo(receiver, amount): boolean
+}
+
+abstract class User #ABSTRACT_COLOR {
+    -id: int
+    -username: String
+    -password: String
+    -role: String
+    -status: String
+    -balance: double
+    --
+    +getId(): int
+    +getUsername(): String
+    +getPassword(): String
+    +getRole(): String
+    +getStatus(): String
+    +getBalance(): double
+    +getUserDetails(): String (abstract)
+}
+
+class Admin #ABSTRACT_COLOR {
+    +Admin(id, username, password)
+    +getUserDetails(): String
+}
+
+class Seller #ABSTRACT_COLOR {
+    -balance: double
+    +Seller(id, username, password, balance)
+    +deposit(amount): void
+    +withdraw(amount): boolean
+    +transferTo(receiver, amount): boolean
+    +getUserDetails(): String
+}
+
+class Bidder #ABSTRACT_COLOR {
+    -balance: double
+    +Bidder(id, username, password, balance)
+    +deposit(amount): void
+    +withdraw(amount): boolean
+    +transferTo(receiver, amount): boolean
+    +getUserDetails(): String
+}
+
+User <|-- Admin
+User <|-- Seller
+User <|-- Bidder
+Seller ..|> Payable
+Bidder ..|> Payable
+
+' ==================== ITEM HIERARCHY ====================
+abstract class Item #ENTITY_COLOR {
+    -id: int
+    -name: String
+    -description: String
+    -startPrice: double
+    -binPrice: double [BUY-IT-NOW]
+    -currentPrice: double
+    -winPrice: double
+    -step: double
+    -sellerName: String
+    -category: String
+    -endTime: Timestamp
+    -status: String
+    -paymentStatus: String
+    -imagePath: String
+    --
+    +getId(): int
+    +getName(): String
+    +getCurrentPrice(): double
+    +getWinPrice(): double
+    +getBinPrice(): double
+    +getItemDetails(): String (abstract)
+}
+
+class Art #ENTITY_COLOR {
+    -artist: String
+    -medium: String
+    -state: String
+    +getItemDetails(): String
+}
+
+class Vehicle #ENTITY_COLOR {
+    -brand: String
+    -modelYear: int
+    -engineType: String
+    -state: String
+    -age: int
+    -mileage: double
+    +getItemDetails(): String
+}
+
+class Electronics #ENTITY_COLOR {
+    -brand: String
+    -warranty: String
+    -state: String
+    +getItemDetails(): String
+}
+
+Item <|-- Art
+Item <|-- Vehicle
+Item <|-- Electronics
+
+class ItemFactory #ENTITY_COLOR {
+    {static} +createItem(category, commonData, specificData): Item
+}
+
+ItemFactory --> Item
+
+' ==================== AUCTION STATE ====================
+class AuctionState #SERVER_COLOR {
+    -itemId: int
+    -stepPrice: double
+    -binPrice: double [BUY-IT-NOW PRICE]
+    -currentPrice: double
+    -highestBidderId: int
+    -isTopBidderAuto: boolean
+    -topAutoMaxBudget: double
+    --
+    +getItemId(): int
+    +getStepPrice(): double
+    +getBinPrice(): double
+    +getCurrentPrice(): double
+    +getHighestBidderId(): int
+    +isTopBidderAuto(): boolean
+    +getTopAutoMaxBudget(): double
+    +setManualTopBidder(bidderId, price): void
+    +setAutoTopBidder(bidderId, budget): void
+}
+
+' ==================== OBSERVER PATTERN ====================
+interface BidSubject #INTERFACE_COLOR {
+    +registerObserver(observer): void
+    +removeObserver(observer): void
+    +notifyObservers(): void
+}
+
+interface BidObserver #INTERFACE_COLOR {
+    +onNotificationReceived(): void
+}
+
+class BidPublisher #SERVER_COLOR {
+    {static} -instance: BidPublisher
+    -observers: List<BidObserver>
+    --
+    {static} +getInstance(): BidPublisher
+    +registerObserver(o): void
+    +removeObserver(o): void
+    +notifyObservers(): void
+}
+
+BidPublisher ..|> BidSubject
+BidPublisher --> BidObserver
+
+' ==================== NETWORK CLASSES ====================
+class AuctionServer #SERVER_COLOR {
+    {static} PORT = 12345
+    {static} +clients: Set<ClientHandler>
+    {static} +activeAuctions: ConcurrentHashMap<Integer, AuctionState>
+    {static} +activeAutoBids: Map<Integer, Map<Integer, Double>>
+    --
+    {static} +main(args): void
+    {static} +broadcast(message): void
+    {static} +broadcastToUser(userId, msg): void
+}
+
+class ClientHandler #SERVER_COLOR {
+    -socket: Socket
+    -userId: int
+    -userDAO: UserDAO
+    -itemDAO: ItemDAO
+    -bidDAO: BidDAO
+    --
+    +run(): void
+    +handleCommand(cmd): void
+    +checkAndApplyAntiSnipe(itemId): void
+    +closeAuction(itemId, userId, winPrice): void
+    +sendMessage(msg): void
+}
+
+class ClientManager #SERVER_COLOR {
+    {static} -instance: ClientManager
+    -socket: Socket
+    -listeners: CopyOnWriteArrayList<UpdateListener>
+    --
+    {static} +getInstance(): ClientManager
+    +sendCommand(msg): void
+    +startListening(): void
+    +addUpdateListener(listener): void
+    +closeConnection(): void
+}
+
+ClientHandler ..|> BidObserver
+AuctionServer --> ClientHandler
+AuctionServer --> AuctionState
+BidPublisher --> ClientHandler
+
+interface UpdateListener #INTERFACE_COLOR {
+    +onUpdateReceived(signal: String): void
+}
+
+ClientManager --> UpdateListener
+
+' ==================== DATABASE LAYER ====================
+class DBContext #DAO_COLOR {
+    {static} +getConnection(): Connection
+}
+
+abstract class UserDAO #DAO_COLOR {
+    +authenticate(username, password): User
+    +register(username, password, role): boolean
+    +getUserBalance(username): double
+}
+
+class AdminDAO #DAO_COLOR {
+    +getAllUsers(): ObservableList<User>
+    +approveTransaction(t): boolean
+    +rejectTransaction(id): boolean
+}
+
+class SellerDAO #DAO_COLOR {
+    +getMyItems(username): ObservableList<Item>
+    +postNewItem(item): boolean
+    +requestDeposit(username, amount): boolean
+}
+
+class BidderDAO #DAO_COLOR {
+    +requestDeposit(username, amount): boolean
+    +requestWithdraw(username, amount): boolean
+}
+
+class ItemDAO #DAO_COLOR {
+    +getAllOpenItems(): ObservableList<Item>
+    +getItemById(id): Item
+    +closeAuction(itemId, winnerId, winPrice): boolean
+    +extendAuctionTime(itemId, minutes): boolean
+    +payForItem(itemId, userId, amount): boolean
+}
+
+class BidDAO #DAO_COLOR {
+    +placeBid(itemId, userId, amount): boolean
+    +saveOrUpdateAutoBid(itemId, userId, maxBudget): void
+    +deactivateAutoBid(itemId, userId): void
+}
+
+class Transaction #DAO_COLOR {
+    -id: int
+    -username: String
+    -type: String
+    -amount: double
+    -fee: double
+    -netAmount: double
+    -status: String
+}
+
+UserDAO <|-- AdminDAO
+UserDAO <|-- SellerDAO
+UserDAO <|-- BidderDAO
+DBContext --> UserDAO
+DBContext --> ItemDAO
+DBContext --> BidDAO
+
+' ==================== RELATIONSHIPS ====================
+ClientHandler --> UserDAO
+ClientHandler --> ItemDAO
+ClientHandler --> BidDAO
+AuctionServer --> DBContext
+
+@enduml
