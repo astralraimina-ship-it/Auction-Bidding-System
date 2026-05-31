@@ -295,6 +295,17 @@ public class BidderAuctionRoomController implements ClientManager.UpdateListener
                         logAction("Hệ thống: Chế độ Autobid của bạn hiện đang tắt / Đã bị hủy.");
                     }
                 }
+            } else if (signal.startsWith("ITEM_DELETED")){
+                String[] part = signal.split(";");
+                int itemId = Integer.parseInt(part[1]);
+                if (itemId == currentItem.getId()){
+                    txtBidInput.setDisable(true);
+                    btnPlaceBid.setDisable(true);
+                    if (btnAutoBidSetup != null) btnAutoBidSetup.setDisable(true);
+                    if (btnStopAutoBid != null) btnStopAutoBid.setDisable(true);
+                    if (txtStopPrice != null) txtStopPrice.setDisable(true);
+                    logAction("Sản phẩm đã bị hủy");
+                }
             }
             else if (signal.startsWith("Notify;")) {
                 logAction(signal.substring(7));

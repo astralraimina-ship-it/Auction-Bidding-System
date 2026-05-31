@@ -54,6 +54,11 @@ public class AdminController implements ClientManager.UpdateListener {
         if (signal.equals("REFRESH")){
             refreshData();
         }
+        else if (signal.startsWith("ERROR")){
+            String[] part = signal.split(";");
+            String message = part[1];
+            showAlert("Thông báo", message);
+        }
     }
 
     // Hàm Refresh dùng chung cho cả 3 bảng, chạy ngầm để không treo App
@@ -128,7 +133,7 @@ public class AdminController implements ClientManager.UpdateListener {
                     } else {
                         Item currentItem = getTableRow().getItem();
                         long diff = currentItem.getEndTime().getTime() - System.currentTimeMillis();
-                        if (diff <= 0 || "CLOSED".equals(currentItem.getStatus())) {
+                        if (diff <= 0 || "CLOSED".equals(currentItem.getStatus()) || "CANCEL".equalsIgnoreCase(currentItem.getStatus())) {
                             setText("Đã kết thúc");
                             setStyle("-fx-text-fill: #e74c3c; -fx-font-weight: bold;");
                         } else {
@@ -278,6 +283,17 @@ public class AdminController implements ClientManager.UpdateListener {
         } else {
             showAlert("Thông báo", "Tài khoản này không bị khóa!");
         }
+    }
+    @FXML
+    private void handleDeleteItem() {
+        Item selectedItem = tableItems.getSelectionModel().getSelectedItem();
+        if (selectedItem == null) {
+            showAlert("Thông báo","Vui lòng chọn sản phẩm cần xóa!");
+            return;
+        }
+
+        // Gửi lệnh lên Server (Kèm ID sản phẩm)
+        ClientManager.getInstance().sendCommand("DELETE_ITEM;" + selectedItem.getId());
     }
 
     private void showAlert(String title, String content) {

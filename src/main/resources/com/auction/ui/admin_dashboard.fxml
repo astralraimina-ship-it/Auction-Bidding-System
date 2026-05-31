@@ -114,6 +114,10 @@
                         <TableView fx:constant="CONSTRAINED_RESIZE_POLICY" />
                     </columnResizePolicy>
                 </TableView>
+                <HBox alignment="CENTER_RIGHT" spacing="15" style="-fx-padding: 10 0 0 0;">
+                    <Button text="Xóa sản phẩm" onAction="#handleDeleteItem"
+                            style="-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 25; -fx-cursor: hand;" />
+                </HBox>
             </VBox>
         </Tab>
     </TabPane>

@@ -227,7 +227,7 @@ public class ItemDAO {
 
     // --- 9. Kiểm tra và quét các phiên hết hạn tự động ---
     public boolean checkAndCloseExpiredItems() {
-        String sqlGetExpired = "SELECT id FROM items WHERE end_time <= NOW() AND status = 'OPEN'";
+        String sqlGetExpired = "SELECT id FROM items WHERE end_time <= ? AND status = 'OPEN'";
         String sqlSetWinner = "UPDATE items i " +
                 "JOIN bids b ON b.item_id = i.id " +
                 "SET i.status = 'CLOSED', " +
@@ -246,6 +246,7 @@ public class ItemDAO {
             conn.setAutoCommit(false);
 
             try (PreparedStatement psGet = conn.prepareStatement(sqlGetExpired)) {
+                psGet.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
                 try(ResultSet rs = psGet.executeQuery()){
                     while (rs.next()) {
                         int itemId = rs.getInt("id");
@@ -406,5 +407,19 @@ public class ItemDAO {
             e.printStackTrace();
         }
         return null;
+    }
+
+    public boolean cancelItem(int itemId){
+        String sql = "UPDATE items SET status = 'CANCEL' WHERE id = ? AND status = 'OPEN'";
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, itemId);
+            int rowsAffected = pstmt.executeUpdate();
+            return rowsAffected > 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 }

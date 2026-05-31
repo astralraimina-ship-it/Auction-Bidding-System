@@ -539,6 +539,24 @@ public class ClientHandler implements Runnable, BidObserver {
                     AuctionServer.activeAuctions.put(itemId, new AuctionState(itemId, startPrice, step, binPrice));
                     BidPublisher.getInstance().notifyObservers();
                 }
+                else if (request.startsWith("DELETE_ITEM")){
+                    String[] parts = request.split(";");
+                    int itemId = Integer.parseInt(parts[1]);
+
+                    // 1. Cập nhật trạng thái sản phẩm trong DB thành 'DELETED' hoặc 'CANCELLED'
+                    ItemDAO itemDAO = new ItemDAO();
+                    boolean isCancel = itemDAO.cancelItem(itemId);
+                    if (isCancel){
+                        AuctionServer.broadcast("ITEM_DELETED;" + itemId);
+                        AuctionServer.activeAuctions.remove(itemId);
+                        AuctionServer.activeAutoBids.remove(itemId);
+                    }
+                    else {
+                        this.sendMessage("ERROR;Không thể xóa sản phẩm đã kết thúc");
+                    }
+
+                    BidPublisher.getInstance().notifyObservers();
+                }
                 else if (request.equals("NEW_USER") || request.equals("TRANSACTION_UPDATED") || request.equals("UPDATE")){
                     BidPublisher.getInstance().notifyObservers();
                 }
