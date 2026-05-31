@@ -1,0 +1,240 @@
+@startuml Auction_Advanced_Features
+
+!define FEATURE_COLOR #FFE5E5
+!define LOGIC_COLOR #E5F5FF
+!define PAYMENT_COLOR #E5FFE5
+!define HIGHLIGHT_COLOR #FFFFE5
+
+skinparam backgroundColor #FEFEFE
+skinparam ClassBorderColor #333333
+skinparam ClassBackgroundColor FEATURE_COLOR
+
+title Auction Bidding System - Advanced Features & Key Logic
+
+' ==================== AUTO-BIDDING ====================
+package "🏆 AUTO-BIDDING FEATURE" #FFE5E5 {
+    card "Step 1: User Sets Auto-Bid" {
+        Command: SET_AUTOBID;itemId;userId;step;stopPrice
+        ---
+        **Validation:**
+        - If stopPrice > binPrice
+        - → Auto-cap to binPrice
+    }
+    
+    card "Step 2: Server Storage" {
+        AuctionState.topAutoMaxBudget = stopPrice
+        (SECRET: Only server knows !)
+        ---
+        Save to DB: BidDAO.saveOrUpdateAutoBid()
+        (For recovery on restart)
+    }
+    
+    card "Step 3: Bidding Logic" {
+        Opponent bids X
+        ---
+        **If X < maxBudget:**
+        Auto-bid = min(X + step, maxBudget)
+        ---
+        **If X ≥ maxBudget:**
+        Auto-bidder LOSES
+    }
+    
+    card "Step 4: Termination" {
+        checkAndDisableLoserAutoBids()
+        | User manual STOP_AUTOBID
+        | Outbid beyond maxBudget
+        ---
+        → Deactivate & notify user
+    }
+}
+
+' ==================== ANTI-SNIPING ====================
+package "⚡ ANTI-SNIPING (Last-Minute Protection)" #E5F5FF {
+    card "Detection Trigger" {
+        **When:** timeLeft < 60 seconds
+        **Occurs on:**
+        - User places BID
+        - User sets AUTO-BID
+        - User clicks BIN
+    }
+    
+    card "Action Taken" {
+        checkAndApplyAntiSnipe(itemId)
+        ↓
+        ItemDAO.extendAuctionTime(+2 min)
+        ↓
+        Broadcast to all clients:
+        "Auction extended +2 minutes!"
+    }
+    
+    card "Real Example" {
+        End Time: 14:00 (20 sec left)
+        User bids at 13:59:40
+        ↓
+        System detects < 60 sec
+        ↓
+        New End Time: 14:02
+        (Extension adds 2 min)
+    }
+}
+
+' ==================== BUY-IT-NOW ====================
+package "💰 BUY-IT-NOW (BIN) FEATURE" #FFFFE5 {
+    card "BIN Price Configuration" {
+        **Field:** Item.binPrice
+        **Stored in RAM:** AuctionState.binPrice
+        **Acts as:** Ceiling price
+        ---
+        ⚠️ Constraint: stopPrice ≤ binPrice
+    }
+    
+    card "User Action: Click 'Mua Ngay'" {
+        Command: BIN;itemId;userId;binPrice
+        ↓
+        ClientHandler.run() (Line 349-383)
+        ↓
+        Immediate auction close
+    }
+    
+    card "Winner Determination" {
+        Check: Has active Auto-Bid?
+        ---
+        **YES & budget ≥ binPrice:**
+        Auto-bidder WINS (can afford)
+        ---
+        **NO or budget < binPrice:**
+        Manual bidder WINS at binPrice
+    }
+    
+    card "Auction Finalization" {
+        closeAuction(itemId, winnerId, binPrice)
+        ↓
+        Database updates:
+        • status = CLOSED
+        • winner_id = winnerId
+        • win_price = binPrice
+        • payment_status = PENDING
+    }
+}
+
+' ==================== REAL-TIME SYNC ====================
+package "🔄 REAL-TIME SYNCHRONIZATION" #E5F5FF {
+    card "Update Flow" {
+        1. ClientHandler receives command
+        2. AuctionState updated (RAM)
+        3. BidDAO.placeBid() → Database
+        4. BidPublisher.notifyObservers()
+        5. All ClientHandlers notified
+        6. ClientManager broadcasts to UI
+        7. JavaFX controllers update
+    }
+    
+    card "Broadcast Messages" {
+        • BID_UPDATE;itemId;userId;amount
+        • AUTOBID_STATUS;ACTIVE/INACTIVE
+        • Closed
+        • REFRESH
+    }
+    
+    card "Observer Pattern" {
+        Publisher: BidPublisher (Singleton)
+        Observers: ClientHandler (1 per client)
+        ---
+        notifyObservers() →
+        onNotificationReceived() ×N
+    }
+}
+
+' ==================== PAYMENT ====================
+package "💳 PAYMENT & SETTLEMENT" #E5FFE5 {
+    card "After Auction Closes" {
+        ItemDAO.closeAuction() executes:
+        • UPDATE status = CLOSED
+        • UPDATE winner_id = winnerId
+        • UPDATE win_price = winPrice
+        • payment_status = PENDING
+    }
+    
+    card "Bidder Pays" {
+        Command: PAY;itemId;userId;amount
+        ↓
+        Check bidder balance ≥ amount
+        ↓
+        Deduct from bidder wallet
+        ↓
+        Transfer to seller (Payable)
+        ↓
+        payment_status = COMPLETED
+    }
+}
+
+' ==================== STATE RECOVERY ====================
+package "🔄 STATE RECOVERY (No Data Loss)" #E5FFE5 {
+    card "Server Startup" {
+        1. Load all OPEN items from DB
+        2. For each item:
+           AuctionState = new(id, price, step, bin)
+        3. Populate activeAuctions (RAM)
+        4. loadActiveAutoBidsFromDB()
+        5. Ready to handle clients
+    }
+    
+    card "Runtime Recovery" {
+        getOrCreateAuctionState(itemId)
+        ↓
+        If NOT in RAM:
+        • Fetch Item from DB
+        • Create fresh AuctionState
+        • Cache in RAM
+        ↓
+        Always recoverable ✓
+    }
+}
+
+' ==================== SYNCHRONIZED BLOCKS ====================
+package "🔒 THREAD SAFETY" #FFFFE5 {
+    card "Critical Sections" {
+        **BID processing:**
+        synchronized(state) { ... }
+        
+        **SET_AUTOBID:**
+        synchronized(state) { ... }
+        
+        **BIN handling:**
+        synchronized(state) { ... }
+    }
+    
+    card "Thread-Safe Collections" {
+        • activeAuctions: ConcurrentHashMap
+        • activeAutoBids: ConcurrentHashMap
+        • listeners: CopyOnWriteArrayList
+    }
+    
+    card "Synchronized Methods" {
+        • BidPublisher.getInstance()
+        • ClientManager.getInstance()
+        • registerObserver()
+        • notifyObservers()
+    }
+}
+
+' ==================== NOTES ====================
+note right of "Step 2: Server Storage"
+  ⚠️ SECURITY: Auto-bid budget
+  hidden from competitors!
+  Only current price broadcast
+end note
+
+note right of "Winner Determination"
+  ✓ If both meet BIN price:
+  Auto-bidder always wins
+  (they set higher budget first)
+end note
+
+note right of "Real Example"
+  Extension happens automatically
+  User sees: "+2 min" notification
+  Auction continues fairly
+end note
+
+@enduml
