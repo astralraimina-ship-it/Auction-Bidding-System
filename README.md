@@ -76,3 +76,8 @@ Dự án sử dụng các công nghệ và thư viện tiêu chuẩn bao gồm:
 
 * Unit Test: Dự án xây dựng sẵn các kịch bản kiểm thử điều kiện biên đối với logic xử lý Auto-Bid và Anti-Snipe thông qua JUnit 5. Bạn có thể thực hiện chạy test nhanh bằng lệnh `mvn clean test` ở thư mục gốc.
 * CI/CD Workflow: Tích hợp sẵn file cấu hình .github/workflows/maven.yml. Mỗi khi mã nguồn được push lên GitHub, hệ thống GitHub Actions sẽ tự động khởi tạo môi trường Ubuntu ảo, cài đặt phần mềm đồ họa ảo (Xvfb) hỗ trợ cho JavaFX, tiến hành biên dịch và chạy toàn bộ các bài Unit Test tự động để kiểm tra chất lượng mã nguồn.
+Link Báo Cáo Bài Tập Lớn: https://drive.google.com/file/d/1JxMYJ352TFHC00ov0a38Q-HcCkJRRl9d/view?usp=sharing
+Link video test: https://drive.google.com/file/d/1aT6yowWv5MHbWxh1kUl6EedyyadWeWPx/view?usp=sharing
+Link UML Diagram:
+https://drive.google.com/file/d/14Y6-aY0XIlNbPX5EwN0_zz_uc5TVnJHY/view?usp=sharing
+https://drive.google.com/file/d/1jG2RF-FYQjwVxQDXOffKQhVQ-rYVk7U1/view?usp=sharing
