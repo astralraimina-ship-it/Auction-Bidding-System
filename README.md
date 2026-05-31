@@ -59,8 +59,7 @@ Dự án sử dụng các công nghệ và thư viện tiêu chuẩn bao gồm:
 * Hướng dẫn kết nối:
   1. Máy Host (chạy Server) và các máy Client từ xa đều cần cài đặt phần mềm Radmin VPN và cùng tham gia vào phòng mạng trên.
   2. Máy chạy Server tiến hành lấy địa chỉ IPv4 do Radmin VPN cấp và bật khởi chạy lớp `AuctionServer.java`.
-  3. Trên mã nguồn các máy Client, mở file cấu hình Socket (ví dụ `AuctionClient.java`) và thay đổi địa chỉ IP kết nối từ `localhost` thành đúng địa chỉ IPv4 Radmin VPN của máy Host.
-
+  3. Chạy file `MainApp.java`
 ### 3. Khởi tạo Cơ sở dữ liệu
 * Mở MySQL Workbench, tạo một Schema mới tên là auction_db.
 * Chạy file script SQL (database.sql kèm theo dự án) để tạo các bảng cần thiết.
